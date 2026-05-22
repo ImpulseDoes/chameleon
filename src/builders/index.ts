@@ -76,6 +76,7 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
     roles: Array.isArray(raw.roles) ? (raw.roles as Record<string, unknown>[]).map(r => buildRole(r)) : [],
     emojis: (raw.emojis as Emoji[]) ?? [],
     applicationId: (raw.application_id as string | null) ?? null,
+    large: (raw.large as boolean) ?? false,
   } as Guild
 }
 

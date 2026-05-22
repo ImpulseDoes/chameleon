@@ -65,6 +65,7 @@ export interface Guild {
   premiumProgressBarEnabled: boolean
   safetyAlertsChannelId?: string | null
   incidentsData?: IncidentsData | null
+  large?: boolean // added by chameleon
 }
 
 export interface Member {

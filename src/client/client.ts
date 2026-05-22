@@ -33,8 +33,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public cache: TongueStore
   public rest: ChameleonREST
   public gateways: Map<number, ChameleonGateway> = new Map()
+  public totalShards = 1
   public gateway: ChameleonGateway
   public user: User | null = null
+  private unavailableGuilds = new Set<string>()
+  private outageGuilds = new Set<string>()
+  private pendingChunks = new Map<string, { received: number, total: number, reason: 'hydration' | 'outage' | null, guild: any, timeout: NodeJS.Timeout }>()
   public debug: boolean
   public commands: CommandManager
   public users: UserManager
@@ -77,6 +81,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       shards = options.sharding.shards
       totalShards = options.sharding.total
     }
+    
+    this.totalShards = totalShards
 
     for (const shardId of shards) {
       const gatewayOptions: import('../gateway/index.ts').ChameleonGatewayOptions = {
@@ -155,6 +161,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public use(fn: MiddlewareFn): this {
     this.middlewares.push(fn)
     return this
+  }
+  
+  private getShardForGuild(guildId: string): number {
+    return Number(BigInt(guildId) >> 22n) % this.totalShards
   }
 
   /**
@@ -253,9 +263,18 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     switch (t) {
 
       case 'READY': {
+
         if (d.user) {
           this.user = buildUser(d.user as Record<string, unknown>)
           this.cache.users.set(this.user.id, this.user)
+        }
+        
+        if (Array.isArray(d.guilds)) {
+          for (const raw of d.guilds as Record<string, unknown>[]) {
+            if (raw.unavailable && typeof raw.id === 'string') {
+              this.unavailableGuilds.add(raw.id)
+            }
+          }
         }
         this.dispatch('READY', { type: 'READY' })
         break
@@ -270,6 +289,16 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         const guild = buildGuild(d)
         
+        let reason: 'hydration' | 'outage' | null = null
+        
+        if (this.unavailableGuilds.has(guild.id)) {
+          this.unavailableGuilds.delete(guild.id)
+          reason = 'hydration'
+        } else if (this.outageGuilds.has(guild.id)) {
+          this.outageGuilds.delete(guild.id)
+          reason = 'outage'
+        }
+
         this.cache.guilds.set(guild.id, guild)
 
         if (Array.isArray(d.channels)) {
@@ -319,7 +348,43 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           }
         }
 
-        this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild })
+        if (guild.large) {
+
+          this.pendingChunks.set(guild.id, {
+            received: 0,
+            total: -1,
+            reason,
+            guild,
+            timeout: setTimeout(() => {
+              if (this.pendingChunks.has(guild.id)) {
+                this.pendingChunks.delete(guild.id)
+                if (reason) {
+                  this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason, partial: true })
+                } else {
+                  this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild, partial: true })
+                }
+              }
+            }, 15_000)
+          })
+
+          const shardId = this.getShardForGuild(guild.id)
+          const gw = this.gateways.get(shardId) ?? this.gateway
+          
+          if (gw) {
+            gw.send(8, {
+              guild_id: guild.id,
+              query: '',
+              limit: 0
+            })
+          }
+        } else {
+
+          if (reason) {
+            this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason })
+          } else {
+            this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild })
+          }
+        }
         break
       }
 
@@ -332,12 +397,18 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'GUILD_DELETE': {
+
         const guildId = d.id as string
         const unavailable = d.unavailable as boolean | undefined
-        if (!unavailable) {
+        
+        if (unavailable) {
+          this.outageGuilds.add(guildId)
+          this.dispatch('GUILD_UNAVAILABLE', { type: 'GUILD_UNAVAILABLE', guildId })
+        } else {
           this.cache.guilds.delete(guildId)
+          this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId })
         }
-        this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId, ...(unavailable !== undefined ? { unavailable } : {}) })
+        
         break
       }
 
@@ -757,6 +828,26 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             members.push(member)
           }
         }
+        
+        const chunkCount = d.chunk_count as number
+        const state = this.pendingChunks.get(guildId)
+
+        if (state) {
+
+          state.total = chunkCount
+          state.received++
+          
+          if (state.received >= state.total) {
+            clearTimeout(state.timeout)
+            this.pendingChunks.delete(guildId)
+            if (state.reason) {
+              this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild: state.guild, reason: state.reason })
+            } else {
+              this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild: state.guild })
+            }
+          }
+        }
+
         this.dispatch('GUILD_MEMBERS_CHUNK', {
           type: 'GUILD_MEMBERS_CHUNK',
           guildId,

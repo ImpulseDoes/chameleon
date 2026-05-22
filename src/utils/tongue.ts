@@ -1,7 +1,7 @@
 /**
  * Chameleon's internal store structure,
  * acts as an least recently used cache to optimize memory usage
- * it's named Tongue because a chameleon catches things with its tongue, you get it right? Right???
+ * it's named Tongue because a chameleon catches things with its tongue, you get it right? Right??? RIGHT?!?!?
  */
 export class Tongue<K, V> {
 

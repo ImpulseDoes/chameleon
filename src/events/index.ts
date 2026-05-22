@@ -18,9 +18,11 @@ export type PartialGuild = Partial<Guild> & { id: string }
 export type ChameleonEvent =
   | { type: 'READY' }
   | { type: 'RESUMED' }
-  | { type: 'GUILD_CREATE'; guild: Guild }
+  | { type: 'GUILD_CREATE'; guild: Guild; partial?: boolean }
+  | { type: 'GUILD_AVAILABLE'; guild: Guild; reason: 'hydration' | 'outage'; partial?: boolean }
+  | { type: 'GUILD_UNAVAILABLE'; guildId: string }
   | { type: 'GUILD_UPDATE'; oldGuild?: Guild; guild: Guild }
-  | { type: 'GUILD_DELETE'; guildId: string; unavailable?: boolean }
+  | { type: 'GUILD_DELETE'; guildId: string }
   | { type: 'CHANNEL_CREATE'; channel: Channel; guild?: PartialGuild }
   | { type: 'CHANNEL_UPDATE'; oldChannel?: Channel; channel: Channel; guild?: PartialGuild }
   | { type: 'CHANNEL_DELETE'; channelId: string; guild?: PartialGuild }
