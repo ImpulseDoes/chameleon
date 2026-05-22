@@ -1,0 +1,21 @@
+{
+  "name": "chameleon",
+  "version": "1.0.0",
+  "description": "just an Discord API wrapper :D",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "impulsedoes",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "vitest": "^4.1.7"
+  }
+}
