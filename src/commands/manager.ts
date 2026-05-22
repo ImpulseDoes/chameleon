@@ -18,12 +18,12 @@ export class CommandManager {
     for (const cmd of commands) {
       this._commands.set(cmd.name, cmd)
     }
-    
+
     this._deployCommands(commands).catch(console.error)
   }
 
   async load(directory: string) {
-    
+
     const fullPath = path.resolve(process.cwd(), directory)
 
     if (!fs.existsSync(fullPath)) {
@@ -37,7 +37,7 @@ export class CommandManager {
     for (const file of files) {
 
       const filePath = path.join(fullPath, file)
-      
+
       try {
 
         const module = await import(`file://${filePath}`)
@@ -59,7 +59,7 @@ export class CommandManager {
   private async _deployCommands(commands: CommandDef<any, any>[]) {
 
     const payload = commands.map(c => this._transformCommand(c))
-    
+
     // If client is already ready, deploy immediately
     if (this._client.user?.id) {
        await this._client.rest.put(`/applications/${this._client.user.id}/commands`, payload)
@@ -86,14 +86,14 @@ export class CommandManager {
     }
 
     const options: any[] = []
-    
+
     if (cmd.subcommands) {
 
       for (const [subName, subDefRaw] of Object.entries(cmd.subcommands)) {
-        
+
         const subDef = subDefRaw as any
         const subOpts: any[] = []
-        
+
         if (subDef.options) {
           for (const [optName, optDef] of Object.entries(subDef.options)) {
              subOpts.push({
@@ -146,13 +146,13 @@ export class CommandManager {
     let targetExecute = command.execute
 
     const rawOptions = raw.data.options || []
-    
+
     let actualOptions = rawOptions
 
     if (rawOptions.length > 0 && rawOptions[0].type === 1) { // SUB_COMMAND
       const subcommandName = rawOptions[0].name
       actualOptions = rawOptions[0].options || []
-      
+
       if (command.subcommands && command.subcommands[subcommandName]) {
         targetExecute = command.subcommands[subcommandName].execute
       }
@@ -172,7 +172,7 @@ export class CommandManager {
 
     const member = raw.member || {}
     const userRaw = member.user || raw.user
-    
+
     const user = buildUser(userRaw)
 
     const ctx = new CommandContext(
