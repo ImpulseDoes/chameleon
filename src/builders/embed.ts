@@ -17,7 +17,70 @@ export const Colors = {
 
 export class EmbedBuilder {
 
-  private data: Partial<Embed> = {}
+  private data: Partial<Embed>
+
+  constructor(data?: Partial<Embed> | Record<string, unknown>) {
+
+    this.data = {}
+    
+    if (!data) return
+
+    if ('title' in data) this.data.title = data.title as string
+    if ('description' in data) this.data.description = data.description as string
+    if ('color' in data) this.data.color = data.color as number
+    if ('url' in data) this.data.url = data.url as string
+
+    if ('timestamp' in data && data.timestamp) {
+      this.data.timestamp = new Date(data.timestamp as string | number | Date).getTime()
+    }
+
+    if (data.author) {
+      const author = data.author as any
+      this.data.author = {
+        name: author.name,
+        url: author.url,
+        iconUrl: author.iconUrl ?? author.icon_url,
+        proxyIconUrl: author.proxyIconUrl ?? author.proxy_icon_url
+      }
+    }
+
+    if (data.footer) {
+      const footer = data.footer as any
+      this.data.footer = {
+        text: footer.text,
+        iconUrl: footer.iconUrl ?? footer.icon_url,
+        proxyIconUrl: footer.proxyIconUrl ?? footer.proxy_icon_url
+      }
+    }
+
+    if (data.image) {
+      const image = data.image as any
+      this.data.image = {
+        url: image.url,
+        proxyUrl: image.proxyUrl ?? image.proxy_url,
+        height: image.height,
+        width: image.width
+      }
+    }
+
+    if (data.thumbnail) {
+      const thumbnail = data.thumbnail as any
+      this.data.thumbnail = {
+        url: thumbnail.url,
+        proxyUrl: thumbnail.proxyUrl ?? thumbnail.proxy_url,
+        height: thumbnail.height,
+        width: thumbnail.width
+      }
+    }
+
+    if (Array.isArray(data.fields)) {
+      this.data.fields = data.fields.map(f => ({
+        name: f.name,
+        value: f.value,
+        inline: f.inline ?? false
+      }))
+    }
+  }
 
   setTitle(title: string): this { this.data.title = title; return this }
   setDescription(description: string): this { this.data.description = description; return this }
@@ -65,10 +128,6 @@ export class EmbedBuilder {
     return { ...this.data } as Embed
   }
 
-  // todo: add a build func here, after we fix it, to accept our typings as well as discord typings
-  // so:
-  // discord -> cham
-  // cham -> discord
   toJSON(): Record<string, unknown> {
 
     const payload: Record<string, unknown> = {
