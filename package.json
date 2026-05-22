@@ -7,7 +7,8 @@
     "test": "vitest",
     "docs": "typedoc",
     "lint": "eslint src example",
-    "lint:fix": "eslint src example --fix"
+    "lint:fix": "eslint src example --fix",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "impulsedoes",
@@ -20,9 +21,14 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
     "eslint": "^10.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
     "tsx": "^4.22.3",
     "typedoc": "^0.28.19",
     "typescript-eslint": "^8.59.4",
     "vitest": "^4.1.7"
+  },
+  "lint-staged": {
+    "*.ts": "eslint --fix"
   }
 }
