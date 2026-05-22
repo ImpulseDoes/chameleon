@@ -9,3 +9,11 @@ It is designed to solve the performance and DX bottlenecks found in traditional 
 - Chameleon uses bitfields in order to store groups of binary fields
 - we store all structs in POJOs instead of classes
 - all gateway events are strict discriminated unions
+
+## Bugs?
+
+- yes, ton of 'em
+
+## related structs
+
+If possible, chameleon will attach the struct of related resources
