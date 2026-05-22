@@ -15,6 +15,7 @@ export interface AwaitComponentOptions {
 }
 
 export class CollectorManager {
+
   constructor(private client: Client) {}
 
   /**
@@ -24,11 +25,11 @@ export class CollectorManager {
   async awaitMessages(channelId: string, options: AwaitMessagesOptions = {}): Promise<Message[]> {
 
     const { filter, max = 1, time = 15000 } = options
-    
+
     return new Promise((resolve) => {
 
       const messages: Message[] = []
-      
+
       let timeoutId: NodeJS.Timeout | null = null
 
       const handler = (data: { type: 'MESSAGE_CREATE', message: Message }) => {
@@ -37,7 +38,7 @@ export class CollectorManager {
 
         if (msg.channelId !== channelId) return
         if (filter && !filter(msg)) return
-        
+
         messages.push(msg)
 
         if (messages.length >= max) {
@@ -84,7 +85,7 @@ export class CollectorManager {
 
         const userRaw = raw.member?.user || raw.user
         const user = buildUser(userRaw)
-        
+
         const ctx = new ComponentContext(
           this.client,
           raw,
@@ -107,7 +108,7 @@ export class CollectorManager {
       const cleanup = () => {
 
         if (timeoutId) clearTimeout(timeoutId)
-        
+
         this.client.off('INTERACTION_CREATE', handler as any)
       }
 
