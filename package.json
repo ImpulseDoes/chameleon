@@ -1,7 +1,7 @@
 {
   "name": "chameleon",
   "version": "0.0.0",
-  "description": "just an Discord API wrapper :D",
+  "description": "highly optimized, memory-efficient, and fully type-safe Discord API library",
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest",
@@ -10,7 +10,13 @@
     "lint:fix": "eslint src example --fix",
     "prepare": "husky"
   },
-  "keywords": [],
+  "keywords": [
+    "api",
+    "chameleon",
+    "discord",
+    "library",
+    "typescript"
+  ],
   "author": "impulsedoes",
   "license": "MIT",
   "type": "module",
