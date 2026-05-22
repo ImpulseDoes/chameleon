@@ -1,5 +1,6 @@
 import { BaseManager } from './base.js'
 import { buildGuild, buildChannel } from '../builders/index.js'
+import { TongueStore } from '../client/store.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
@@ -57,7 +58,7 @@ export class GuildManager extends BaseManager<Guild> {
     const result = await this.rest.delete(`/guilds/${guildId}/members/${userId}`, headers)
     
     if (result.ok) {
-      this.store.members.delete(`${guildId}:${userId}`)
+      this.store.members.delete(TongueStore.memberKey(guildId, userId))
     }
     
     return result as ChameleonAPIResult<void>

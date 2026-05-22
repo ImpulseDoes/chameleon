@@ -1,5 +1,5 @@
 import type { ChameleonREST } from '../rest/index.js'
-import type { TongueStore } from '../client/store.js'
+import { TongueStore } from '../client/store.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import type { Member } from '../types/guild/index.js'
 import { buildMember } from '../builders/index.js'
@@ -18,7 +18,7 @@ export class MemberManager {
 
   async fetch(userId: string, force = false): Promise<ChameleonAPIResult<Member>> {
 
-    const cacheKey = `${this.guildId}:${userId}`
+    const cacheKey = TongueStore.memberKey(this.guildId, userId)
 
     if (!force) {
       

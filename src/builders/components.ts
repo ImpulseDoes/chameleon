@@ -57,13 +57,55 @@ export class TextInputBuilder {
   setLabel(label: string): this { this.data.label = label; return this }
   setStyle(style: number): this { this.data.style = style; return this }
   setPlaceholder(placeholder: string): this { this.data.placeholder = placeholder; return this }
-  setMinLength(min: number): this { (this.data as any).min_length = min; return this }
-  setMaxLength(max: number): this { (this.data as any).max_length = max; return this }
-  setRequired(required = true): this { (this.data as any).required = required; return this }
-  setValue(value: string): this { (this.data as any).value = value; return this }
+  
+  private _minLength?: number
+  private _maxLength?: number
+  private _required?: boolean
+  private _value?: string
 
-  build(): MessageComponent { return { ...this.data } as MessageComponent }
-  toJSON(): MessageComponent { return this.build() }
+  setMinLength(length: number) {
+    this._minLength = length
+    return this
+  }
+
+  setMaxLength(length: number) {
+    this._maxLength = length
+    return this
+  }
+
+  setRequired(required: boolean = true) {
+    this._required = required
+    return this
+  }
+
+  setValue(value: string) {
+    this._value = value
+    return this
+  }
+
+  build(): MessageComponent { 
+    return { 
+      ...this.data, 
+      minLength: this._minLength, 
+      maxLength: this._maxLength, 
+      required: this._required, 
+      value: this._value 
+    } as MessageComponent 
+  }
+
+  toJSON(): any { 
+    return {
+      type: 4,
+      custom_id: this.data.customId,
+      style: this.data.style,
+      label: this.data.label,
+      placeholder: this.data.placeholder,
+      min_length: this._minLength,
+      max_length: this._maxLength,
+      required: this._required,
+      value: this._value
+    } 
+  }
 }
 
 export class ActionRowBuilder {

@@ -8,6 +8,7 @@ import type { StageInstance } from '../types/stage/index.js'
 import type { GuildScheduledEvent } from '../types/scheduled/index.js'
 import type { AutoModerationRule, AutoModerationAction } from '../types/automod/index.js'
 import type { Emoji } from '../types/expressions/index.js'
+import type { Sticker } from '../types/expressions/index.js'
 import type { Entitlement } from '../types/entitlement/index.js'
 import type { Invite } from '../types/invite/index.js'
 import type { Integration } from '../types/integration/index.js'
@@ -41,7 +42,7 @@ export type ChameleonEvent =
   | { type: 'GUILD_BAN_ADD'; guildId: string; user: User }
   | { type: 'GUILD_BAN_REMOVE'; guildId: string; user: User }
   | { type: 'GUILD_EMOJIS_UPDATE'; guildId: string; emojis: Emoji[] }
-  | { type: 'GUILD_STICKERS_UPDATE'; guildId: string; stickers: unknown[] }
+  | { type: 'GUILD_STICKERS_UPDATE'; guildId: string; stickers: Sticker[] }
   | { type: 'MESSAGE_CREATE'; message: Message; channel: PartialChannel }
   | { type: 'MESSAGE_UPDATE'; oldMessage?: Message; message: Message; channel: PartialChannel }
   | { type: 'MESSAGE_DELETE'; messageId: string; channelId: string; guildId?: string; message?: Message }

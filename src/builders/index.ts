@@ -92,6 +92,7 @@ export function buildRole(raw: Record<string, unknown>): Role {
     mentionable: (raw.mentionable as boolean) ?? false,
     icon: (raw.icon as string | null) ?? null,
     unicodeEmoji: (raw.unicode_emoji as string | null) ?? null,
+    flags: (raw.flags as number) ?? 0,
   } as Role
 }
 
