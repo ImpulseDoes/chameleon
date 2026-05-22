@@ -206,6 +206,7 @@ export interface Message {
   author: User
   member?: Member // ge
   content: string
+  url: string // added by chameleon
   timestamp: number // Unix ms
   editedTimestamp: number | null // Unix ms
   tts: boolean

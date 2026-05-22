@@ -2,6 +2,7 @@ import type { Client } from '../client/client.js'
 import type { User } from '../types/user/index.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
+import type { InteractionReplyOptions } from './context.js'
 
 export class ComponentContext {
   
@@ -43,16 +44,21 @@ export class ComponentContext {
     return (this as any)._values ?? []
   }
 
-  async reply(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async reply(payload: InteractionReplyOptions): Promise<void> {
+
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+    
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 4,
-      data: { content, flags: options?.ephemeral ? 64 : 0 }
+      data
     })
     this._replied = true
   }
 
   async deferUpdate(): Promise<void> {
+    
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 6 // DEFERRED_UPDATE_MESSAGE
@@ -60,29 +66,36 @@ export class ComponentContext {
     this._deferred = true
   }
 
-  async update(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async update(payload: InteractionReplyOptions): Promise<void> {
+
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 7, // UPDATE_MESSAGE
-      data: { content, flags: options?.ephemeral ? 64 : 0 }
+      data
     })
     this._replied = true
   }
 
-  async followUp(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async followUp(payload: InteractionReplyOptions): Promise<void> {
+
     if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, {
-      content, flags: options?.ephemeral ? 64 : 0
-    })
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+    
+    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
   }
 }
 
 export class ModalContext {
+
   public customId: string
   public user: User
   public guild?: Guild | { id: string } | undefined
   public channel?: Channel | { id: string } | undefined
-
   public interactionId: string
   public interactionToken: string
 
@@ -130,17 +143,25 @@ export class ModalContext {
     return Object.fromEntries(this._fields)
   }
 
-  async reply(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async reply(payload: InteractionReplyOptions): Promise<void> {
+
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+    
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 4,
-      data: { content, flags: options?.ephemeral ? 64 : 0 }
+      data
     })
     this._replied = true
   }
 
   async defer(options?: { ephemeral?: boolean }): Promise<void> {
+
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+    
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 5,
       data: { flags: options?.ephemeral ? 64 : 0 }
@@ -148,10 +169,12 @@ export class ModalContext {
     this._deferred = true
   }
 
-  async followUp(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async followUp(payload: InteractionReplyOptions): Promise<void> {
+
     if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, {
-      content, flags: options?.ephemeral ? 64 : 0
-    })
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+
+    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
   }
 }

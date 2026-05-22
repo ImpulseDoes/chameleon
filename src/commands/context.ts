@@ -3,6 +3,13 @@ import type { User } from '../types/user/index.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 
+export type InteractionReplyOptions = string | {
+  content?: string
+  embeds?: any[]
+  components?: any[]
+  ephemeral?: boolean
+}
+
 export class CommandContext<Options = Record<string, any>> {
 
   public options: Options
@@ -36,16 +43,16 @@ export class CommandContext<Options = Record<string, any>> {
   get replied() { return this._replied }
   get deferred() { return this._deferred }
 
-  async reply(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async reply(payload: InteractionReplyOptions): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
-      data: {
-        content,
-        flags: options?.ephemeral ? 64 : 0
-      }
+      data
     })
     this._replied = true
   }
@@ -63,13 +70,13 @@ export class CommandContext<Options = Record<string, any>> {
     this._deferred = true
   }
 
-  async followUp(content: string, options?: { ephemeral?: boolean }): Promise<void> {
+  async followUp(payload: InteractionReplyOptions): Promise<void> {
     
     if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged. Use reply or defer first.')
     
-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, {
-      content,
-      flags: options?.ephemeral ? 64 : 0
-    })
+    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+
+    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
   }
 }

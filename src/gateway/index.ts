@@ -37,6 +37,7 @@ export class ChameleonGateway {
   public readonly token: string
   public readonly intents: number
   public readonly version: number
+  public ms: number = -1
   public readonly encoding: string
   public readonly largeThreshold: number
   public readonly shard?: [number, number]
@@ -51,6 +52,7 @@ export class ChameleonGateway {
   private resumeUrl: string | null = null
   private reconnectAttempts: number = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _lastHeartbeatSend: number = 0
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
 
   constructor(options: ChameleonGatewayOptions) {
@@ -61,7 +63,7 @@ export class ChameleonGateway {
     this.encoding = options.encoding ?? 'json'
     this.largeThreshold = options.largeThreshold ?? 50
     this.baseUrl = `wss://gateway.discord.gg/?v=${this.version}&encoding=${this.encoding}`
-    
+
     if (options.shard !== undefined) this.shard = options.shard
   }
 
@@ -124,7 +126,7 @@ export class ChameleonGateway {
   public send(op: number, d: unknown): void {
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
-    
+
     this.ws.send(JSON.stringify({ op, d }))
   }
 
@@ -244,6 +246,7 @@ export class ChameleonGateway {
       case DISCORD_GATEWAY_OPCODES.HEARTBEAT_ACK: {
 
         this.heartbeatAcked = true
+        this.ms = Date.now() - this._lastHeartbeatSend
         this.emit('heartbeatAck')
 
         break
@@ -273,7 +276,7 @@ export class ChameleonGateway {
       }
 
       case DISCORD_GATEWAY_OPCODES.INVALID_SESSION: {
-        
+
         const resumable = payload.d as boolean
         this.emit('debug', `[GATEWAY] Invalid Session (resumable=${resumable})`)
 
@@ -375,7 +378,7 @@ export class ChameleonGateway {
   private sendHeartbeat(): void {
 
     if (!this.heartbeatAcked) {
-      
+
       this.emit('debug', '[GATEWAY] Heartbeat ACK not received, reconnecting...')
       this.disconnect(4900, 'Zombie connection (no heartbeat ACK)')
       this.scheduleReconnect()
@@ -384,6 +387,7 @@ export class ChameleonGateway {
     }
 
     this.heartbeatAcked = false
+    this._lastHeartbeatSend = Date.now()
     this.send(DISCORD_GATEWAY_OPCODES.HEARTBEAT, this.seq)
   }
 
@@ -452,7 +456,7 @@ export class ChameleonGateway {
   }
 
   private clearReconnectTimer(): void {
-    
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

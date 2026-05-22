@@ -1,5 +1,20 @@
 import type { Embed, EmbedField, EmbedFooter, EmbedAuthor, EmbedImage } from '../types/message/index.js'
 
+export const Colors = {
+  Blue: 0x1e90ff,
+  Purple: 0x9b59b6,
+  Orange: 0xff7f50,
+  Pink: 0xff6b81,
+  White: 0xffffff,
+  Blurple: 0x5865F2,
+  Green: 0x57F287,
+  Yellow: 0xFEE75C,
+  Fuchsia: 0xEB459E,
+  Red: 0xED4245,
+  Black: 0x23272A,
+  Transparent: 0x2F3136
+} as const
+
 export class EmbedBuilder {
 
   private data: Partial<Embed> = {}
@@ -50,7 +65,52 @@ export class EmbedBuilder {
     return { ...this.data } as Embed
   }
 
-  toJSON(): Embed {
-    return this.build()
+  // todo: add a build func here, after we fix it, to accept our typings as well as discord typings
+  // so:
+  // discord -> cham
+  // cham -> discord
+  toJSON(): Record<string, unknown> {
+
+    const payload: Record<string, unknown> = {
+      ...this.data,
+      timestamp: this.data.timestamp ? new Date(this.data.timestamp).toISOString() : undefined
+    }
+
+    if (this.data.author) {
+      payload.author = {
+        name: this.data.author.name,
+        url: this.data.author.url,
+        icon_url: this.data.author.iconUrl,
+        proxy_icon_url: this.data.author.proxyIconUrl
+      }
+    }
+
+    if (this.data.footer) {
+      payload.footer = {
+        text: this.data.footer.text,
+        icon_url: this.data.footer.iconUrl,
+        proxy_icon_url: this.data.footer.proxyIconUrl
+      }
+    }
+
+    if (this.data.image) {
+      payload.image = {
+        url: this.data.image.url,
+        proxy_url: this.data.image.proxyUrl,
+        height: this.data.image.height,
+        width: this.data.image.width
+      }
+    }
+
+    if (this.data.thumbnail) {
+      payload.thumbnail = {
+        url: this.data.thumbnail.url,
+        proxy_url: this.data.thumbnail.proxyUrl,
+        height: this.data.thumbnail.height,
+        width: this.data.thumbnail.width
+      }
+    }
+
+    return payload
   }
 }

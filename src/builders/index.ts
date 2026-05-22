@@ -129,11 +129,16 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     cache.users.set(author.id, author)
   }
 
+  const msgId = (raw.id as string) ?? oldMessage?.id
+  const channelId = (raw.channel_id as string) ?? oldMessage?.channelId
+  const guildId = raw.guild_id ? (raw.guild_id as string) : oldMessage?.guildId
+
   const msg: Message = {
-    id: (raw.id as string) ?? oldMessage?.id,
-    channelId: (raw.channel_id as string) ?? oldMessage?.channelId,
+    id: msgId,
+    channelId,
     author,
-    ...(raw.guild_id ? { guildId: raw.guild_id as string } : (oldMessage?.guildId ? { guildId: oldMessage.guildId } : {})),
+    ...(guildId ? { guildId } : {}),
+    url: `https://discord.com/channels/${guildId ?? '@me'}/${channelId}/${msgId}`,
     content: (raw.content as string) ?? oldMessage?.content ?? '',
     timestamp: raw.timestamp ? Date.parse(raw.timestamp as string) : (oldMessage?.timestamp ?? Date.now()),
     editedTimestamp: raw.edited_timestamp ? Date.parse(raw.edited_timestamp as string) : oldMessage?.editedTimestamp ?? null,
