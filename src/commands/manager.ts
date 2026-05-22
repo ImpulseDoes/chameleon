@@ -1,13 +1,27 @@
 import type { Client } from '../client/client.js'
 import type { CommandDef } from './command.js'
 import { CommandContext } from './context.js'
+import { ComponentContext, ModalContext } from './interactions.js'
 import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
+
+export interface ComponentHandler {
+  customId: string | RegExp
+  execute: (ctx: ComponentContext) => any | Promise<any>
+}
+
+export interface ModalHandler {
+  customId: string | RegExp
+  execute: (ctx: ModalContext) => any | Promise<any>
+}
+
 import * as fs from 'fs'
 import * as path from 'path'
 
 export class CommandManager {
 
   private _commands = new Map<string, CommandDef<any, any>>()
+  private _components: ComponentHandler[] = []
+  private _modals: ModalHandler[] = []
   private _client: Client
 
   constructor(client: Client) {
@@ -20,6 +34,14 @@ export class CommandManager {
     }
 
     this._deployCommands(commands).catch(console.error)
+  }
+
+  registerComponent(handler: ComponentHandler) {
+    this._components.push(handler)
+  }
+
+  registerModal(handler: ModalHandler) {
+    this._modals.push(handler)
   }
 
   async load(directory: string) {
@@ -136,7 +158,10 @@ export class CommandManager {
   }
 
   public async handleInteraction(raw: any) {
-    if (raw.type !== 2) return // Only handle Application Commands for now
+
+    if (raw.type === 3) return this._handleComponentInteraction(raw)
+    if (raw.type === 5) return this._handleModalInteraction(raw)
+    if (raw.type !== 2) return // Only handle Application Commands below
 
     const name = raw.data.name
     const command = this._commands.get(name)
@@ -190,6 +215,62 @@ export class CommandManager {
       } catch (err) {
         console.error(`[Chameleon] Error executing command ${name}:`, err)
       }
+    }
+  }
+
+  private async _handleComponentInteraction(raw: any) {
+
+    const customId = raw.data.custom_id
+    const handler = this._components.find(h => 
+      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId)
+    )
+
+    if (!handler) return
+
+    const userRaw = raw.member?.user || raw.user
+    const user = buildUser(userRaw)
+    const ctx = new ComponentContext(
+      this._client,
+      raw,
+      user,
+      raw.guild_id ? resolveGuild(raw.guild_id, this._client.cache) : undefined,
+      raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
+    )
+
+    if (raw.data.component_type === 3 || raw.data.component_type === 5 || raw.data.component_type === 6 || raw.data.component_type === 7 || raw.data.component_type === 8) {
+      (ctx as any)._values = raw.data.values || []
+    }
+
+    try {
+      await handler.execute(ctx)
+    } catch (err) {
+      console.error(`[Chameleon] Error executing component ${customId}:`, err)
+    }
+  }
+
+  private async _handleModalInteraction(raw: any) {
+
+    const customId = raw.data.custom_id
+    const handler = this._modals.find(h => 
+      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId)
+    )
+    
+    if (!handler) return
+
+    const userRaw = raw.member?.user || raw.user
+    const user = buildUser(userRaw)
+    const ctx = new ModalContext(
+      this._client,
+      raw,
+      user,
+      raw.guild_id ? resolveGuild(raw.guild_id, this._client.cache) : undefined,
+      raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
+    )
+
+    try {
+      await handler.execute(ctx)
+    } catch (err) {
+      console.error(`[Chameleon] Error executing modal ${customId}:`, err)
     }
   }
 }

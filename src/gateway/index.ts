@@ -128,6 +128,47 @@ export class ChameleonGateway {
     this.ws.send(JSON.stringify({ op, d }))
   }
 
+  public pendingPresence: Record<string, any> | null = null
+
+  /**
+   * Update the presence/status for this shard
+   */
+  public updatePresence(options: {
+    status?: 'online' | 'dnd' | 'idle' | 'invisible' | 'offline'
+    activities?: Array<{ name: string; type: number; url?: string; state?: string }>
+    afk?: boolean
+    since?: number | null
+  }): void {
+    const payload = {
+      since: options.since ?? null,
+      activities: options.activities?.map(activity => {
+        if (activity.type === 4 && !activity.state) {
+          return {
+            ...activity,
+            name: "CS",
+            state: activity.name
+          }
+        }
+        if (activity.type === 1 && !activity.url) {
+          return {
+            ...activity,
+            url: "https://twitch.tv/discord"
+          }
+        }
+        return activity
+      }) ?? [],
+      status: options.status ?? 'online',
+      afk: options.afk ?? false
+    }
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.pendingPresence = payload
+      return
+    }
+
+    this.send(DISCORD_GATEWAY_OPCODES.PRESENCE_UPDATE, payload)
+  }
+
   /**
    * Register an event listener.
    */
@@ -383,7 +424,8 @@ export class ChameleonGateway {
           device: 'chameleon'
         },
         large_threshold: this.largeThreshold,
-        ...(this.shard ? { shard: this.shard } : {})
+        ...(this.shard ? { shard: this.shard } : {}),
+        ...(this.pendingPresence ? { presence: this.pendingPresence } : {})
       })
     }
   }

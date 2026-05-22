@@ -1,3 +1,5 @@
+import packageJson from "../../package.json" with { type: "json" }
+
 export const LIMITS = {
   MAX_EMBED_SIZE: 6000,
   MAX_EMBED_DESCRIPTION: 4096,
@@ -34,6 +36,5 @@ export const LIMITS = {
   MAX_MESSAGE_COMPONENTS: 5,
 }
 
-export const CHAMELEON_CONSTANTS =  {
-  version: 'fetch from package'
-}
+export const CHAMELEON_VERSION = packageJson.version
+export const CHAMELEON = packageJson.name

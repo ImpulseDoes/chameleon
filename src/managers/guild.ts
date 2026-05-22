@@ -24,4 +24,42 @@ export class GuildManager extends BaseManager<Guild> {
 
     return { ok: true, data: channels }
   }
+
+  async ban(guildId: string, userId: string, options?: { deleteMessageSeconds?: number; reason?: string }): Promise<ChameleonAPIResult<void>> {
+    
+    const payload: Record<string, any> = {}
+    
+    if (options?.deleteMessageSeconds !== undefined) payload.delete_message_seconds = options.deleteMessageSeconds
+    
+    const headers: Record<string, string> = {}
+    if (options?.reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(options.reason)
+
+    const result = await this.rest.put(`/guilds/${guildId}/bans/${userId}`, payload, headers)
+    return result as ChameleonAPIResult<void>
+  }
+
+  async unban(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.delete(`/guilds/${guildId}/bans/${userId}`, headers)
+    return result as ChameleonAPIResult<void>
+  }
+
+  async kick(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.delete(`/guilds/${guildId}/members/${userId}`, headers)
+    
+    if (result.ok) {
+      this.store.members.delete(`${guildId}:${userId}`)
+    }
+    
+    return result as ChameleonAPIResult<void>
+  }
 }

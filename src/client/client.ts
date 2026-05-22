@@ -9,7 +9,7 @@ import {
   resolveChannel
 } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
-import { UserManager, GuildManager, ChannelManager } from '../managers/index.ts'
+import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
 
 export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
   token: string
@@ -40,6 +40,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public users: UserManager
   public guilds: GuildManager
   public channels: ChannelManager
+  public messages: MessageManager
+  public collectors: CollectorManager
 
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
   private middlewares: MiddlewareFn[] = []
@@ -56,6 +58,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.users = new UserManager(this.rest, this.cache)
     this.guilds = new GuildManager(this.rest, this.cache)
     this.channels = new ChannelManager(this.rest, this.cache)
+    this.messages = new MessageManager(this.rest, this.cache)
+    this.collectors = new CollectorManager(this)
     
     // detect sharding from environment if 'auto'
     let shards: number[] = [0]
@@ -129,6 +133,23 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   }
 
   /**
+   * remove an event listener
+   */
+  public off<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
+
+    const handlers = this.listeners.get(event)
+    if (!handlers) return this
+    
+    const index = handlers.indexOf(listener as (data: unknown) => void)
+    
+    if (index !== -1) {
+      handlers.splice(index, 1)
+    }
+
+    return this
+  }
+
+  /**
    * register middleware that runs between dispatch and event handlers
    */
   public use(fn: MiddlewareFn): this {
@@ -154,6 +175,20 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public destroy(): void {
     for (const gw of this.gateways.values()) {
       gw.disconnect(1000, 'Client destroyed')
+    }
+  }
+
+  /**
+   * Update presence/status across all shards
+   */
+  public presence(options: {
+    status?: 'online' | 'dnd' | 'idle' | 'invisible' | 'offline'
+    activities?: Array<{ name: string; type: number; url?: string; state?: string }>
+    afk?: boolean
+    since?: number | null
+  }): void {
+    for (const gw of this.gateways.values()) {
+      gw.updatePresence(options)
     }
   }
 
@@ -243,18 +278,44 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.channels.set(ch.id, ch)
           }
         }
+        
         if (Array.isArray(d.roles)) {
           for (const raw of d.roles as Record<string, unknown>[]) {
             const role = buildRole(raw)
             this.cache.roles.set(role.id, role)
           }
         }
+
         if (Array.isArray(d.members)) {
           for (const raw of d.members as Record<string, unknown>[]) {
             const member = buildMember(raw, guild.id, this.cache)
             if (member.user?.id) {
               this.cache.members.set(TongueStore.memberKey(guild.id, member.user.id), member)
             }
+          }
+        }
+
+        if (Array.isArray(d.emojis)) {
+          for (const raw of d.emojis as import('../types/expressions/index.ts').Emoji[]) {
+            this.cache.emojis.set(raw.id as string, raw)
+          }
+        }
+
+        if (Array.isArray(d.stickers)) {
+          for (const raw of d.stickers as import('../types/expressions/index.ts').Sticker[]) {
+            this.cache.stickers.set(raw.id, raw)
+          }
+        }
+
+        if (Array.isArray(d.stage_instances)) {
+          for (const raw of d.stage_instances as import('../types/stage/index.ts').StageInstance[]) {
+            this.cache.stageInstances.set(raw.id, raw)
+          }
+        }
+
+        if (Array.isArray(d.guild_scheduled_events)) {
+          for (const raw of d.guild_scheduled_events as import('../types/scheduled/index.ts').GuildScheduledEvent[]) {
+            this.cache.scheduledEvents.set(raw.id, raw)
           }
         }
 
@@ -355,7 +416,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const rawUser = d.user as Record<string, unknown>
         const user = buildUser(rawUser)
         this.cache.users.set(user.id, user)
-        const oldMember = this.cache.members.get(TongueStore.memberKey(guildId, user.id))
+        const memberKey = TongueStore.memberKey(guildId, user.id)
+        const oldMember = this.cache.members.get(memberKey)
+        const updatedMember = buildMember(d, guildId, this.cache)
+        this.cache.members.set(memberKey, updatedMember)
         this.dispatch('GUILD_MEMBER_UPDATE', {
           type: 'GUILD_MEMBER_UPDATE',
           guildId,
@@ -402,12 +466,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'GUILD_BAN_ADD': {
         const user = buildUser(d.user as Record<string, unknown>)
+        this.cache.users.set(user.id, user)
         this.dispatch('GUILD_BAN_ADD', { type: 'GUILD_BAN_ADD', guildId: d.guild_id as string, user })
         break
       }
 
       case 'GUILD_BAN_REMOVE': {
         const user = buildUser(d.user as Record<string, unknown>)
+        this.cache.users.set(user.id, user)
         this.dispatch('GUILD_BAN_REMOVE', { type: 'GUILD_BAN_REMOVE', guildId: d.guild_id as string, user })
         break
       }
@@ -471,6 +537,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_REACTION_ADD': {
+        let reactionMember: import('../types/guild/index.ts').Member | undefined
+        if (d.member && d.guild_id) {
+          reactionMember = buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache)
+          if (reactionMember.user?.id) {
+            this.cache.users.set(reactionMember.user.id, reactionMember.user)
+            this.cache.members.set(TongueStore.memberKey(d.guild_id as string, reactionMember.user.id), reactionMember)
+          }
+        }
         this.dispatch('MESSAGE_REACTION_ADD', {
           type: 'MESSAGE_REACTION_ADD',
           userId: d.user_id as string,
@@ -478,7 +552,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>,
-          ...(d.member ? { member: buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {})
+          ...(reactionMember ? { member: reactionMember } : {})
         })
         break
       }
@@ -544,12 +618,17 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INVITE_CREATE': {
+        let inviter: User | undefined
+        if (d.inviter) {
+          inviter = buildUser(d.inviter as Record<string, unknown>)
+          this.cache.users.set(inviter.id, inviter)
+        }
         this.dispatch('INVITE_CREATE', {
           type: 'INVITE_CREATE',
           channelId: d.channel_id as string,
           code: d.code as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          ...(d.inviter ? { inviter: buildUser(d.inviter as Record<string, unknown>) } : {}),
+          ...(inviter ? { inviter } : {}),
           maxAge: d.max_age as number,
           maxUses: d.max_uses as number,
           temporary: d.temporary as boolean
@@ -601,13 +680,21 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'TYPING_START': {
+        let typingMember: import('../types/guild/index.ts').Member | undefined
+        if (d.member && d.guild_id) {
+          typingMember = buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache)
+          if (typingMember.user?.id) {
+            this.cache.users.set(typingMember.user.id, typingMember.user)
+            this.cache.members.set(TongueStore.memberKey(d.guild_id as string, typingMember.user.id), typingMember)
+          }
+        }
         this.dispatch('TYPING_START', {
           type: 'TYPING_START',
           channelId: d.channel_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           userId: d.user_id as string,
           timestamp: d.timestamp as number,
-          ...(d.member ? { member: buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {})
+          ...(typingMember ? { member: typingMember } : {})
         })
         break
       }
@@ -652,6 +739,182 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           answerId: d.answer_id as number
+        })
+        break
+      }
+      case 'GUILD_MEMBERS_CHUNK': {
+
+        const guildId = d.guild_id as string
+        const members: import('../types/guild/index.ts').Member[] = []
+        
+        if (Array.isArray(d.members)) {
+          for (const raw of d.members as Record<string, unknown>[]) {
+            const member = buildMember(raw, guildId, this.cache)
+            if (member.user?.id) {
+              this.cache.users.set(member.user.id, member.user)
+              this.cache.members.set(TongueStore.memberKey(guildId, member.user.id), member)
+            }
+            members.push(member)
+          }
+        }
+        this.dispatch('GUILD_MEMBERS_CHUNK', {
+          type: 'GUILD_MEMBERS_CHUNK',
+          guildId,
+          members,
+          chunkIndex: d.chunk_index as number,
+          chunkCount: d.chunk_count as number,
+          ...(d.not_found ? { notFound: d.not_found as string[] } : {}),
+          ...(d.nonce ? { nonce: d.nonce as string } : {})
+        })
+        break
+      }
+
+      case 'THREAD_LIST_SYNC': {
+        const guildId = d.guild_id as string
+        const threads: import('../types/channel/index.ts').Channel[] = []
+        if (Array.isArray(d.threads)) {
+          for (const raw of d.threads as Record<string, unknown>[]) {
+            const ch = buildChannel(raw, guildId)
+            this.cache.channels.set(ch.id, ch)
+            threads.push(ch)
+          }
+        }
+        this.dispatch('THREAD_LIST_SYNC', {
+          type: 'THREAD_LIST_SYNC',
+          guildId,
+          ...(d.channel_ids ? { channelIds: d.channel_ids as string[] } : {}),
+          threads,
+          members: d.members as unknown[]
+        })
+        break
+      }
+
+      case 'GUILD_EMOJIS_UPDATE': {
+        const emojis = d.emojis as import('../types/expressions/index.ts').Emoji[]
+        for (const emoji of emojis) {
+          if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
+        }
+        this.dispatch('GUILD_EMOJIS_UPDATE', {
+          type: 'GUILD_EMOJIS_UPDATE',
+          guildId: d.guild_id as string,
+          emojis
+        })
+        break
+      }
+
+      case 'GUILD_STICKERS_UPDATE': {
+        const stickers = d.stickers as import('../types/expressions/index.ts').Sticker[]
+        for (const sticker of stickers) {
+          this.cache.stickers.set(sticker.id, sticker)
+        }
+        this.dispatch('GUILD_STICKERS_UPDATE', {
+          type: 'GUILD_STICKERS_UPDATE',
+          guildId: d.guild_id as string,
+          stickers
+        })
+        break
+      }
+
+      case 'STAGE_INSTANCE_CREATE': {
+        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        this.cache.stageInstances.set(stageInstance.id, stageInstance)
+        this.dispatch('STAGE_INSTANCE_CREATE', { type: 'STAGE_INSTANCE_CREATE', stageInstance })
+        break
+      }
+      case 'STAGE_INSTANCE_UPDATE': {
+        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        this.cache.stageInstances.set(stageInstance.id, stageInstance)
+        this.dispatch('STAGE_INSTANCE_UPDATE', { type: 'STAGE_INSTANCE_UPDATE', stageInstance })
+        break
+      }
+      case 'STAGE_INSTANCE_DELETE': {
+        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        this.cache.stageInstances.delete(stageInstance.id)
+        this.dispatch('STAGE_INSTANCE_DELETE', { type: 'STAGE_INSTANCE_DELETE', stageInstance })
+        break
+      }
+
+      case 'GUILD_SCHEDULED_EVENT_CREATE': {
+        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
+        this.dispatch('GUILD_SCHEDULED_EVENT_CREATE', { type: 'GUILD_SCHEDULED_EVENT_CREATE', scheduledEvent })
+        break
+      }
+      case 'GUILD_SCHEDULED_EVENT_UPDATE': {
+        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
+        this.dispatch('GUILD_SCHEDULED_EVENT_UPDATE', { type: 'GUILD_SCHEDULED_EVENT_UPDATE', scheduledEvent })
+        break
+      }
+      case 'GUILD_SCHEDULED_EVENT_DELETE': {
+        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        this.cache.scheduledEvents.delete(scheduledEvent.id)
+        this.dispatch('GUILD_SCHEDULED_EVENT_DELETE', { type: 'GUILD_SCHEDULED_EVENT_DELETE', scheduledEvent })
+        break
+      }
+      case 'GUILD_SCHEDULED_EVENT_USER_ADD': {
+        this.dispatch('GUILD_SCHEDULED_EVENT_USER_ADD', { type: 'GUILD_SCHEDULED_EVENT_USER_ADD', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
+        break
+      }
+      case 'GUILD_SCHEDULED_EVENT_USER_REMOVE': {
+        this.dispatch('GUILD_SCHEDULED_EVENT_USER_REMOVE', { type: 'GUILD_SCHEDULED_EVENT_USER_REMOVE', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
+        break
+      }
+
+      case 'AUTO_MODERATION_RULE_CREATE': {
+        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        this.cache.autoModRules.set(rule.id, rule)
+        this.dispatch('AUTO_MODERATION_RULE_CREATE', { type: 'AUTO_MODERATION_RULE_CREATE', rule })
+        break
+      }
+      case 'AUTO_MODERATION_RULE_UPDATE': {
+        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        this.cache.autoModRules.set(rule.id, rule)
+        this.dispatch('AUTO_MODERATION_RULE_UPDATE', { type: 'AUTO_MODERATION_RULE_UPDATE', rule })
+        break
+      }
+      case 'AUTO_MODERATION_RULE_DELETE': {
+        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        this.cache.autoModRules.delete(rule.id)
+        this.dispatch('AUTO_MODERATION_RULE_DELETE', { type: 'AUTO_MODERATION_RULE_DELETE', rule })
+        break
+      }
+      case 'AUTO_MODERATION_ACTION_EXECUTION': {
+        this.dispatch('AUTO_MODERATION_ACTION_EXECUTION', {
+          type: 'AUTO_MODERATION_ACTION_EXECUTION',
+          guildId: d.guild_id as string,
+          action: d.action as import('../types/automod/index.ts').AutoModerationAction,
+          ruleId: d.rule_id as string,
+          ruleTriggerType: d.rule_trigger_type as number,
+          userId: d.user_id as string,
+          ...(d.channel_id ? { channelId: d.channel_id as string } : {}),
+          ...(d.message_id ? { messageId: d.message_id as string } : {}),
+          ...(d.content !== undefined ? { content: d.content as string } : {}),
+          ...(d.matched_keyword !== undefined ? { matchedKeyword: d.matched_keyword as string | null } : {}),
+          ...(d.matched_content !== undefined ? { matchedContent: d.matched_content as string | null } : {})
+        })
+        break
+      }
+
+      case 'INTEGRATION_CREATE': {
+        const integration = d as unknown as import('../types/integration/index.ts').Integration
+        this.cache.integrations.set(integration.id, integration)
+        this.dispatch('INTEGRATION_CREATE', { type: 'INTEGRATION_CREATE', guildId: d.guild_id as string, integration })
+        break
+      }
+      case 'INTEGRATION_UPDATE': {
+        const integration = d as unknown as import('../types/integration/index.ts').Integration
+        this.cache.integrations.set(integration.id, integration)
+        this.dispatch('INTEGRATION_UPDATE', { type: 'INTEGRATION_UPDATE', guildId: d.guild_id as string, integration })
+        break
+      }
+      case 'INTEGRATION_DELETE': {
+        this.cache.integrations.delete(d.id as string)
+        this.dispatch('INTEGRATION_DELETE', {
+          type: 'INTEGRATION_DELETE',
+          id: d.id as string,
+          guildId: d.guild_id as string,
+          ...(d.application_id ? { applicationId: d.application_id as string } : {})
         })
         break
       }

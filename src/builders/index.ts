@@ -5,6 +5,9 @@ import type { Message } from '../types/message/index.js'
 import type { Emoji } from '../types/expressions/index.js'
 import type { TongueStore } from '../client/store.js'
 
+export * from './embed.js'
+export * from './components.js'
+
 export function buildUser(raw: Record<string, unknown>): User {
   return {
     id: raw.id as string,
