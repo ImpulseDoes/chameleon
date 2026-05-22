@@ -3,7 +3,7 @@ import type { CommandContext } from './context.js'
 
 export type ExecuteFunction<O extends Record<string, OptionDef<any, boolean>>> = (ctx: CommandContext<ResolveOptions<O>>) => void | Promise<void>
 
-export interface Subcommand<O extends Record<string, OptionDef<any, boolean>> = {}> {
+export interface Subcommand<O extends Record<string, OptionDef<any, boolean>> = Record<string, never>> {
   description: string
   options?: O
   execute: ExecuteFunction<O>
@@ -14,8 +14,8 @@ export function defineSubcommand<O extends Record<string, OptionDef<any, boolean
 }
 
 export type CommandDef<
-  O extends Record<string, OptionDef<any, boolean>> = {},
-  S extends Record<string, Subcommand<any>> = {}
+  O extends Record<string, OptionDef<any, boolean>> = Record<string, never>,
+  S extends Record<string, Subcommand<any>> = Record<string, never>
 > = {
   name: string
   description: string

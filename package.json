@@ -5,7 +5,9 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "lint": "eslint src example",
+    "lint:fix": "eslint src example --fix"
   },
   "keywords": [],
   "author": "impulsedoes",
@@ -15,9 +17,12 @@
     "typescript": "^6.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
+    "eslint": "^10.4.0",
     "tsx": "^4.22.3",
     "typedoc": "^0.28.19",
+    "typescript-eslint": "^8.59.4",
     "vitest": "^4.1.7"
   }
 }

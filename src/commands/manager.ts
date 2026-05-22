@@ -167,7 +167,7 @@ export class CommandManager {
     const command = this._commands.get(name)
     if (!command) return
 
-    let parsedOptions: Record<string, any> = {}
+    const parsedOptions: Record<string, any> = {}
     let targetExecute = command.execute
 
     const rawOptions = raw.data.options || []

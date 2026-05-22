@@ -113,6 +113,7 @@ export class ChameleonGateway {
     if (this.ws) {
       try {
         this.ws.close(code, reason)
+      // eslint-disable-next-line no-empty
       } catch {}
       this.ws = null
     }
