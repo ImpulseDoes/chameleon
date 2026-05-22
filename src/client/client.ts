@@ -9,6 +9,7 @@ import {
   resolveChannel
 } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
+import { UserManager, GuildManager, ChannelManager } from '../managers/index.ts'
 
 export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
   token: string
@@ -25,7 +26,6 @@ type EventMap = {
 }
 
 export type MiddlewareFn = (event: ChameleonEvent, next: () => void) => void | Promise<void>
-
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
 
   public token: string
@@ -37,6 +37,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public user: User | null = null
   public debug: boolean
   public commands: CommandManager
+  public users: UserManager
+  public guilds: GuildManager
+  public channels: ChannelManager
 
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
   private middlewares: MiddlewareFn[] = []
@@ -50,6 +53,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.cache = new TongueStore(options.cache)
     this.rest = new ChameleonREST({ token: this.token })
     this.commands = new CommandManager(this)
+    this.users = new UserManager(this.rest, this.cache)
+    this.guilds = new GuildManager(this.rest, this.cache)
+    this.channels = new ChannelManager(this.rest, this.cache)
     
     // detect sharding from environment if 'auto'
     let shards: number[] = [0]
