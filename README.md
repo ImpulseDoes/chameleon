@@ -6,7 +6,7 @@ It is designed to solve the performance and DX bottlenecks found in traditional 
 
 ## What we do different?
 
-- Chameleon uses bitfields in order to store groups of binary fields
+- we store timestamps in milliseconds instead of Discord ISO8601 timestamps
 - we store all structs in POJOs instead of classes
 - all gateway events are strict discriminated unions
 
