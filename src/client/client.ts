@@ -163,8 +163,32 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     return this
   }
   
-  private getShardForGuild(guildId: string): number {
+  public getShardForGuild(guildId: string): number {
     return Number(BigInt(guildId) >> 22n) % this.totalShards
+  }
+
+  /**
+   * request offline/large guild members from the Gateway.
+   * This is used to lazy-load members into the cache or search for specific members
+   */
+  public requestGuildMembers(options: {
+    guildId: string | string[]
+    query?: string
+    limit: number
+    presences?: boolean
+    userIds?: string | string[]
+    nonce?: string
+  }): void {
+    
+    const guildId = Array.isArray(options.guildId) ? options.guildId[0] : options.guildId
+    if (!guildId) return
+    
+    const shardId = this.getShardForGuild(guildId)
+    const gw = this.gateways.get(shardId) ?? this.gateway
+    
+    if (gw) {
+      gw.requestGuildMembers(options)
+    }
   }
 
   /**
@@ -371,8 +395,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           const gw = this.gateways.get(shardId) ?? this.gateway
           
           if (gw) {
-            gw.send(8, {
-              guild_id: guild.id,
+            gw.requestGuildMembers({
+              guildId: guild.id,
               query: '',
               limit: 0
             })

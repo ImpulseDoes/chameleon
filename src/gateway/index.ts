@@ -173,6 +173,36 @@ export class ChameleonGateway {
   }
 
   /**
+   * request offline/large guild members from the Gateway
+   * this is used to lazy-load members into the cache via GUILD_MEMBERS_CHUNK events
+   */
+  public requestGuildMembers(options: {
+    guildId: string | string[]
+    query?: string
+    limit: number
+    presences?: boolean
+    userIds?: string | string[]
+    nonce?: string
+  }): void {
+    
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('[GATEWAY] Cannot request guild members while disconnected')
+    }
+
+    const payload: Record<string, any> = {
+      guild_id: options.guildId,
+      limit: options.limit,
+    }
+
+    if (options.query !== undefined) payload.query = options.query
+    if (options.presences !== undefined) payload.presences = options.presences
+    if (options.userIds !== undefined) payload.user_ids = options.userIds
+    if (options.nonce !== undefined) payload.nonce = options.nonce
+
+    this.send(DISCORD_GATEWAY_OPCODES.REQUEST_GUILD_MEMBERS, payload)
+  }
+
+  /**
    * Register an event listener.
    */
   public on<T = unknown>(event: string, listener: (data: T) => void): void {
