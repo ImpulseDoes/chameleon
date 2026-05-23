@@ -150,6 +150,6 @@ describe('opt (option builders)', () => {
     })
     expect(o.choices).toHaveLength(2)
 
-    expect(o.choices![0].value).toBe('red')
+    expect(o.choices?.[0]?.value).toBe('red')
   })
 })

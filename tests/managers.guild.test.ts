@@ -21,7 +21,7 @@ describe('GuildManager', () => {
 
     if (res.ok) {
       expect(res.data).toHaveLength(1)
-      expect(res.data[0].id).toBe('ch1')
+      expect(res.data?.[0]?.id).toBe('ch1')
     }
   })
 
@@ -77,7 +77,7 @@ describe('GuildManager', () => {
     manager['rest'].delete = vi.fn().mockResolvedValue({ ok: true })
     
     // Add fake member to cache to test deletion
-    client.cache.members.set('g1_u1', {} as any /* eslint-disable-line @typescript-eslint/no-explicit-any */)
+    client.cache.members.set('g1_u1', {} as any)
 
     const res = await manager.kick('g1', 'u1', 'nga')
 

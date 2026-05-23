@@ -20,7 +20,7 @@ describe('ButtonBuilder', () => {
       .setEmoji({ name: '👍' })
 
     const built = btn.build()
-    
+
     expect(built.type).toBe(ComponentType.BUTTON)
     expect(built.customId).toBe('btn')
     expect(built.label).toBe('Click')
@@ -84,8 +84,8 @@ describe('TextInputBuilder', () => {
     expect(built.type).toBe(ComponentType.TEXT_INPUT)
     expect(built.customId).toBe('txt')
     expect(built.label).toBe('Enter')
-    expect((built as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).minLength).toBe(5)
-    expect((built as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).value).toBe('Default')
+    expect((built as unknown as Record<string, unknown>).minLength).toBe(5)
+    expect((built as unknown as Record<string, unknown>).value).toBe('Default')
 
     const json = input.toJSON()
 
@@ -110,10 +110,8 @@ describe('ActionRowBuilder', () => {
 
     expect(built.type).toBe(ComponentType.ACTION_ROW)
     expect(built.components).toHaveLength(2)
-
-    expect(built.components![0].customId).toBe('b1')
-
-    expect(built.components![1].customId).toBe('b2')
+    expect(built.components?.[0]?.customId).toBe('b1')
+    expect(built.components?.[1]?.customId).toBe('b2')
 
     const json = row.toJSON()
 

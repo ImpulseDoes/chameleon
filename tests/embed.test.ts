@@ -50,7 +50,7 @@ describe('EmbedBuilder', () => {
 
     const embed = new EmbedBuilder().setFooter('Footer text', 'https://img.png')
     const json = embed.toJSON()
-    const footer = json.footer as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
+    const footer = json.footer as Record<string, unknown>
 
     expect(footer.text).toBe('Footer text')
     expect(footer.icon_url).toBe('https://img.png')
@@ -60,7 +60,7 @@ describe('EmbedBuilder', () => {
 
     const embed = new EmbedBuilder().setAuthor('Author', 'https://icon.png', 'https://url.com')
     const json = embed.toJSON()
-    const author = json.author as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
+    const author = json.author as Record<string, unknown>
 
     expect(author.name).toBe('Author')
     expect(author.icon_url).toBe('https://icon.png')
@@ -71,7 +71,7 @@ describe('EmbedBuilder', () => {
 
     const embed = new EmbedBuilder().setImage('https://img.png')
     const json = embed.toJSON()
-    const image = json.image as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
+    const image = json.image as Record<string, unknown>
 
     expect(image.url).toBe('https://img.png')
   })
@@ -80,7 +80,7 @@ describe('EmbedBuilder', () => {
 
     const embed = new EmbedBuilder().setThumbnail('https://thumb.png')
     const json = embed.toJSON()
-    const thumbnail = json.thumbnail as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
+    const thumbnail = json.thumbnail as Record<string, unknown>
 
     expect(thumbnail.url).toBe('https://thumb.png')
   })
@@ -94,11 +94,9 @@ describe('EmbedBuilder', () => {
     const built = embed.build()
     expect(built.fields).toHaveLength(2)
 
-    expect(built.fields![0].name).toBe('Name 1')
-
-    expect(built.fields![0].inline).toBe(false)
-
-    expect(built.fields![1].inline).toBe(true)
+    expect(built.fields?.[0]?.name).toBe('Name 1')
+    expect(built.fields?.[0]?.inline).toBe(false)
+    expect(built.fields?.[1]?.inline).toBe(true)
   })
 
   it('should add multiple fields with addFields', () => {
@@ -152,18 +150,18 @@ describe('EmbedBuilder', () => {
     const json = embed.toJSON()
 
     expect(json.title).toBe('From API')
-    expect((json.author as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).name).toBe('Auth')
-    expect((json.author as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).icon_url).toBe('https://icon.png')
-    expect((json.footer as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).text).toBe('Foot')
-    expect((json.image as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).url).toBe('https://img.png')
-    expect((json.image as any /* eslint-disable-line @typescript-eslint/no-explicit-any */).proxy_url).toBe('https://proxy.png')
+    expect((json.author as Record<string, unknown>).name).toBe('Auth')
+    expect((json.author as Record<string, unknown>).icon_url).toBe('https://icon.png')
+    expect((json.footer as Record<string, unknown>).text).toBe('Foot')
+    expect((json.image as Record<string, unknown>).url).toBe('https://img.png')
+    expect((json.image as Record<string, unknown>).proxy_url).toBe('https://proxy.png')
   })
 
   it('should build empty embed without errors', () => {
 
     const embed = new EmbedBuilder()
     const json = embed.toJSON()
-    
+
     expect(json.timestamp).toBeUndefined()
     expect(json.title).toBeUndefined()
   })

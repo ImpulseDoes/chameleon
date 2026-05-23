@@ -64,10 +64,10 @@ describe('Chameleon Entity Resolvers', () => {
 
     const cache = new TongueStore()
     
-    cache.channels.set('ch1', { id: 'ch1', type: 0 } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */)
-    cache.guilds.set('g1', { id: 'g1', name: 'g' } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */)
-    cache.users.set('u1', { id: 'u1', username: 'u' } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */)
-    cache.roles.set('r1', { id: 'r1', name: 'r' } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */)
+    cache.channels.set('ch1', { id: 'ch1', type: 0 } as any)
+    cache.guilds.set('g1', { id: 'g1', name: 'g' } as any)
+    cache.users.set('u1', { id: 'u1', username: 'u' } as any)
+    cache.roles.set('r1', { id: 'r1', name: 'r' } as any)
 
     expect(resolveChannel('ch1', cache)).toHaveProperty('type', 0)
     expect(resolveChannel('ch2', cache)).toEqual({ id: 'ch2' })
@@ -97,8 +97,7 @@ describe('Edge cases', () => {
     const msg = buildMessage(raw, cache)
 
     expect(msg.mentions).toHaveLength(1)
-
-    expect(msg.mentions[0].username).toBe('john')
+    expect(msg.mentions?.[0]?.username).toBe('john')
   })
 
   it('should build Guild with roles properly', () => {
@@ -112,7 +111,6 @@ describe('Edge cases', () => {
     const guild = buildGuild(raw)
     
     expect(guild.roles).toHaveLength(1)
-
-    expect(guild.roles[0].name).toBe('Admin')
+    expect(guild.roles?.[0]?.name).toBe('Admin')
   })
 })

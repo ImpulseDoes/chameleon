@@ -13,7 +13,7 @@ function mockRest(response: unknown) {
     put: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
-  } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
+  } as any
 }
 
 describe('Managers', () => {
@@ -103,11 +103,11 @@ describe('Managers', () => {
     const store = new TongueStore()
     const rest = {
       get: vi.fn().mockResolvedValue({ ok: false, status: 404, message: 'Unknown User' }),
-    } as any /* eslint-disable-line @typescript-eslint/no-explicit-any */
-    const users = new UserManager(rest, store)
+    } as any
 
+    const users = new UserManager(rest, store)
     const result = await users.fetch('999')
-    
+
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.status).toBe(404)
