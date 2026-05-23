@@ -3,6 +3,7 @@ import type { CommandDef } from './command.js'
 import { CommandContext } from './context.js'
 import { ComponentContext, ModalContext } from './interactions.js'
 import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
+import { COMMAND_OPTION_TYPES, INTERACTION_TYPES, COMPONENT_TYPES } from '../utils/constants.js'
 
 export interface ComponentHandler {
   customId: string | RegExp
@@ -130,7 +131,7 @@ export class CommandManager {
           }
         }
         options.push({
-          type: 1, // SUB_COMMAND
+          type: COMMAND_OPTION_TYPES.SUB_COMMAND,
           name: subName,
           description: subDef.description,
           options: subOpts
@@ -159,9 +160,9 @@ export class CommandManager {
 
   public async handleInteraction(raw: any) {
 
-    if (raw.type === 3) return this._handleComponentInteraction(raw)
-    if (raw.type === 5) return this._handleModalInteraction(raw)
-    if (raw.type !== 2) return // Only handle Application Commands below
+    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._handleComponentInteraction(raw)
+    if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw)
+    if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND) return
 
     const name = raw.data.name
     const command = this._commands.get(name)
@@ -174,7 +175,7 @@ export class CommandManager {
 
     let actualOptions = rawOptions
 
-    if (rawOptions.length > 0 && rawOptions[0].type === 1) { // SUB_COMMAND
+    if (rawOptions.length > 0 && rawOptions[0].type === COMMAND_OPTION_TYPES.SUB_COMMAND) { // SUB_COMMAND
       const subcommandName = rawOptions[0].name
       actualOptions = rawOptions[0].options || []
 
@@ -184,11 +185,11 @@ export class CommandManager {
     }
 
     for (const opt of actualOptions) {
-      if (opt.type === 6 && raw.data.resolved?.users?.[opt.value]) { // User
+      if (opt.type === COMMAND_OPTION_TYPES.USER && raw.data.resolved?.users?.[opt.value]) { // User
         parsedOptions[opt.name] = resolveUser(opt.value, this._client.cache)
-      } else if (opt.type === 7 && raw.data.resolved?.channels?.[opt.value]) { // Channel
+      } else if (opt.type === COMMAND_OPTION_TYPES.CHANNEL && raw.data.resolved?.channels?.[opt.value]) { // Channel
         parsedOptions[opt.name] = resolveChannel(opt.value, this._client.cache)
-      } else if (opt.type === 8 && raw.data.resolved?.roles?.[opt.value]) { // Role
+      } else if (opt.type === COMMAND_OPTION_TYPES.ROLE && raw.data.resolved?.roles?.[opt.value]) { // Role
         parsedOptions[opt.name] = resolveRole(opt.value, this._client.cache)
       } else {
         parsedOptions[opt.name] = opt.value
@@ -237,7 +238,7 @@ export class CommandManager {
       raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
     )
 
-    if (raw.data.component_type === 3 || raw.data.component_type === 5 || raw.data.component_type === 6 || raw.data.component_type === 7 || raw.data.component_type === 8) {
+    if (raw.data.component_type === COMPONENT_TYPES.STRING_SELECT || raw.data.component_type === COMPONENT_TYPES.USER_SELECT || raw.data.component_type === COMPONENT_TYPES.ROLE_SELECT || raw.data.component_type === COMPONENT_TYPES.MENTIONABLE_SELECT || raw.data.component_type === COMPONENT_TYPES.CHANNEL_SELECT) {
       (ctx as any)._values = raw.data.values || []
     }
 

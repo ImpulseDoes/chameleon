@@ -3,6 +3,7 @@ import type { User } from '../types/user/index.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 import type { InteractionReplyOptions } from './context.js'
+import { INTERACTION_CALLBACK_TYPES } from '../utils/constants.js'
 
 export class ComponentContext {
   
@@ -51,7 +52,7 @@ export class ComponentContext {
     if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
     
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: 4,
+      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
       data
     })
     this._replied = true
@@ -61,7 +62,7 @@ export class ComponentContext {
     
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: 6 // DEFERRED_UPDATE_MESSAGE
+      type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
     })
     this._deferred = true
   }
@@ -73,7 +74,7 @@ export class ComponentContext {
     if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
 
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: 7, // UPDATE_MESSAGE
+      type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
       data
     })
     this._replied = true
@@ -152,7 +153,7 @@ export class ModalContext {
     if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
 
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: 4,
+      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
       data
     })
     this._replied = true
@@ -163,7 +164,7 @@ export class ModalContext {
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: 5,
+      type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
       data: { flags: options?.ephemeral ? 64 : 0 }
     })
     this._deferred = true

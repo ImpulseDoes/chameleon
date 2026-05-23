@@ -95,7 +95,7 @@ export class TextInputBuilder {
 
   toJSON(): any { 
     return {
-      type: 4,
+      type: ComponentType.TEXT_INPUT,
       custom_id: this.data.customId,
       style: this.data.style,
       label: this.data.label,

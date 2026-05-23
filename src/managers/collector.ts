@@ -2,6 +2,7 @@ import type { Client } from '../client/client.js'
 import type { Message } from '../types/message/index.js'
 import { ComponentContext } from '../commands/interactions.js'
 import { resolveGuild, resolveChannel, buildUser } from '../builders/index.js'
+import { COMPONENT_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
 
 export interface AwaitMessagesOptions {
   filter?: (message: Message) => boolean
@@ -79,8 +80,8 @@ export class CollectorManager {
       const handler = (data: { type: 'INTERACTION_CREATE', interaction: any }) => {
 
         const raw = data.interaction
-        // 3 = MESSAGE_COMPONENT
-        if (raw.type !== 3) return
+        
+        if (raw.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
         if (raw.message?.id !== messageId) return
 
         const userRaw = raw.member?.user || raw.user
@@ -95,7 +96,7 @@ export class CollectorManager {
         )
 
         // hydrate values if select menu
-        if (raw.data.component_type === 3 || raw.data.component_type === 5 || raw.data.component_type === 6 || raw.data.component_type === 7 || raw.data.component_type === 8) {
+        if (raw.data.component_type === COMPONENT_TYPES.STRING_SELECT || raw.data.component_type === COMPONENT_TYPES.USER_SELECT || raw.data.component_type === COMPONENT_TYPES.ROLE_SELECT || raw.data.component_type === COMPONENT_TYPES.MENTIONABLE_SELECT || raw.data.component_type === COMPONENT_TYPES.CHANNEL_SELECT) {
           (ctx as any)._values = raw.data.values || []
         }
 

@@ -5,10 +5,14 @@ import type { ChameleonEvent } from '../events/index.ts'
 import type { User } from '../types/user/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import {
+  INTERACTION_TYPES
+} from '../utils/constants.ts'
+import {
   buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage,
   resolveChannel
 } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
+import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
 
 export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
@@ -41,6 +45,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   private pendingChunks = new Map<string, { received: number, total: number, reason: 'hydration' | 'outage' | null, guild: any, timeout: NodeJS.Timeout }>()
   public debug: boolean
   public commands: CommandManager
+  public components: ComponentManager
   public users: UserManager
   public guilds: GuildManager
   public channels: ChannelManager
@@ -59,6 +64,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.cache = new TongueStore(options.cache)
     this.rest = new ChameleonREST({ token: this.token })
     this.commands = new CommandManager(this)
+    this.components = new ComponentManager(this)
     this.users = new UserManager(this.rest, this.cache)
     this.guilds = new GuildManager(this.rest, this.cache)
     this.channels = new ChannelManager(this.rest, this.cache)
@@ -686,7 +692,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INTERACTION_CREATE': {
-        this.commands.handleInteraction(d).catch(console.error)
+        if (d.type === INTERACTION_TYPES.APPLICATION_COMMAND || d.type === INTERACTION_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE) {
+          this.commands.handleInteraction(d).catch(console.error)
+        } else if (d.type === INTERACTION_TYPES.MESSAGE_COMPONENT || d.type === INTERACTION_TYPES.MODAL_SUBMIT) {
+          this.components.handleInteraction(d).catch(console.error)
+        }
+        
         this.dispatch('INTERACTION_CREATE', {
           type: 'INTERACTION_CREATE',
           interaction: d as unknown as import('../types/interaction/index.ts').Interaction

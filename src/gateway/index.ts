@@ -1,4 +1,4 @@
-import { DISCORD_GATEWAY_OPCODES } from '../types/types.js'
+import { DISCORD_GATEWAY_OPCODES, Activity } from '../types/types.js'
 
 export interface ChameleonGatewayOptions {
   token: string
@@ -145,14 +145,14 @@ export class ChameleonGateway {
     const payload = {
       since: options.since ?? null,
       activities: options.activities?.map(activity => {
-        if (activity.type === 4 && !activity.state) {
+        if (activity.type === Activity.CUSTOM && !activity.state) {
           return {
             ...activity,
             name: "CS",
             state: activity.name
           }
         }
-        if (activity.type === 1 && !activity.url) {
+        if (activity.type === Activity.STREAMING && !activity.url) {
           return {
             ...activity,
             url: "https://twitch.tv/discord"
