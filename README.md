@@ -1,6 +1,6 @@
 # Chameleon
 
-Chameleon is a highly optimized, memory-efficient, and fully type-safe Discord API framework
+Chameleon is a type-safe Discord API framework design around memory efficiency
 
 Designed for development of ...
 
