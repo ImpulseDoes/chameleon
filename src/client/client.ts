@@ -27,7 +27,7 @@ type EventMap = {
 export type MiddlewareFn = (event: ChameleonEvent, next: () => void) => void | Promise<void>
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
 
-  public token: string
+  public token: string | undefined
   public intents: number
   public cache: TongueStore
   public rest: ChameleonREST
@@ -51,6 +51,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   private middlewares: MiddlewareFn[] = []
 
   constructor(options: ClientOptions<TIntents>) {
+
+    if (!options.token) throw new Error('[Chameleon] Token is required')
 
     this.token = options.token
     this.intents = this.resolveIntents(options.intents)
