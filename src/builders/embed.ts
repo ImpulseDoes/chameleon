@@ -94,54 +94,72 @@ export class EmbedBuilder {
   toJSON(): Record<string, unknown> {
 
     const e = this.data
-
     const payload: Record<string, unknown> = {}
 
-    if (e.title) payload.title = e.title
-    if (e.description) payload.description = e.description
-    if (e.color) payload.color = e.color
-    if (e.url) payload.url = e.url
+    if (typeof e.title === 'string') payload.title = e.title
+    if (typeof e.description === 'string') payload.description = e.description
+    if (typeof e.color === 'number') payload.color = e.color
+    if (typeof e.url === 'string') payload.url = e.url
 
-    if (e.timestamp) {
+    if (typeof e.timestamp === 'number' && !Number.isNaN(e.timestamp)) {
       payload.timestamp = new Date(e.timestamp).toISOString()
     }
 
     if (e.author) {
-      payload.author = {
-        name: e.author.name,
-        ...(e.author.url ? { url: e.author.url } : {}),
-        ...(e.author.iconUrl ? { icon_url: e.author.iconUrl } : {}),
-        ...(e.author.proxyIconUrl ? { proxy_icon_url: e.author.proxyIconUrl } : {}),
-      }
-    }
+      const author: Record<string, unknown> = {
+			name: e.author.name,
+		}
 
-    if (e.footer) {
-      payload.footer = {
-        text: e.footer.text,
-        ...(e.footer.iconUrl ? { icon_url: e.footer.iconUrl } : {}),
-        ...(e.footer.proxyIconUrl ? { proxy_icon_url: e.footer.proxyIconUrl } : {}),
-      }
-    }
+		if (typeof e.author.url === 'string') {
+			author.url = e.author.url
+		}
 
-    if (e.image?.url) {
-      payload.image = {
-        url: e.image.url,
-      }
-    }
+		if (typeof e.author.iconUrl === 'string') {
+			author.icon_url = e.author.iconUrl
+		}
 
-    if (e.thumbnail?.url) {
-      payload.thumbnail = {
-        url: e.thumbnail.url,
-      }
-    }
+		if (typeof e.author.proxyIconUrl === 'string') {
+			author.proxy_icon_url = e.author.proxyIconUrl
+		}
 
-    if (e.fields?.length) {
-      payload.fields = e.fields.map(f => ({
-        name: f.name,
-        value: f.value,
-        inline: f.inline ?? false,
-      }))
-    }
+		payload.author = author
+	}
+
+	if (e.footer) {
+		const footer: Record<string, unknown> = {
+			text: e.footer.text,
+		}
+
+		if (typeof e.footer.iconUrl === 'string') {
+			footer.icon_url = e.footer.iconUrl
+		}
+
+		if (typeof e.footer.proxyIconUrl === 'string') {
+			footer.proxy_icon_url = e.footer.proxyIconUrl
+		}
+
+		payload.footer = footer
+	}
+
+	if (e.image?.url) {
+		payload.image = {
+			url: e.image.url,
+		}
+	}
+
+	if (e.thumbnail?.url) {
+		payload.thumbnail = {
+			url: e.thumbnail.url,
+		}
+	}
+
+	if (Array.isArray(e.fields) && e.fields.length > 0) {
+		payload.fields = e.fields.map(f => ({
+			name: f.name,
+			value: f.value,
+			inline: !!f.inline,
+		}))
+	}
 
     return payload
   }
