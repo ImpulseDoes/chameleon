@@ -2,7 +2,7 @@
 
 Chameleon is a highly optimized, memory-efficient, and fully type-safe Discord API framework
 
-It is designed to solve the performance and DX bottlenecks found in traditional Discord libraries, making it perfectly suited for large-scale bot deployments
+Designed for development of ...
 
 ## What we do different?
 
