@@ -1,0 +1,16 @@
+.github/
+.husky/
+coverage/
+docs/
+example/
+tests/
+tbot/
+src/
+.directory
+.env
+tsconfig.json
+typedoc.json
+eslint.config.mjs
+ROADMAP.md
+*.md
+!README.md
