@@ -10,7 +10,6 @@ import type { AutoModerationRule, AutoModerationAction } from '../types/automod/
 import type { Emoji } from '../types/expressions/index.js'
 import type { Sticker } from '../types/expressions/index.js'
 import type { Entitlement } from '../types/entitlement/index.js'
-import type { Invite } from '../types/invite/index.js'
 import type { Integration } from '../types/integration/index.js'
 
 export type PartialChannel = Partial<Channel> & { id: string }
@@ -57,6 +56,18 @@ export type ChameleonEvent =
   | { type: 'STAGE_INSTANCE_CREATE'; stageInstance: StageInstance }
   | { type: 'STAGE_INSTANCE_UPDATE'; stageInstance: StageInstance }
   | { type: 'STAGE_INSTANCE_DELETE'; stageInstance: StageInstance }
+  | { type: 'GUILD_SOUNDBOARD_SOUND_CREATE';  guildId: string; sound: unknown } // todo
+  | { type: 'GUILD_SOUNDBOARD_SOUND_UPDATE';  guildId: string; sound: unknown } // todo
+  | { type: 'GUILD_SOUNDBOARD_SOUND_DELETE';  guildId: string; soundId: string } // todo
+  | { type: 'GUILD_SOUNDBOARD_SOUNDS_UPDATE'; guildId: string; sounds: unknown[] } // todo
+  | { type: 'SUBSCRIPTION_CREATE'; subscription: unknown } // todo
+  | { type: 'SUBSCRIPTION_UPDATE'; subscription: unknown } // todo
+  | { type: 'SUBSCRIPTION_DELETE'; subscription: unknown } // todo
+  | { type: 'VOICE_CHANNEL_EFFECT_SEND'; channelId: string; guildId: string; userId: string; emoji?: unknown } // todo
+  | { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE'; guildId: string; entry: unknown } // todo
+  | { type: 'THREAD_MEMBERS_UPDATE'; id: string; guildId: string; memberCount: number; addedMembers?: unknown[]; removedMemberIds?: string[] } // todo
+  | { type: 'THREAD_MEMBER_UPDATE'; member: unknown; guildId: string } // todo
+  | { type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE'; permissions: unknown } // todo
   | { type: 'GUILD_SCHEDULED_EVENT_CREATE'; scheduledEvent: GuildScheduledEvent }
   | { type: 'GUILD_SCHEDULED_EVENT_UPDATE'; scheduledEvent: GuildScheduledEvent }
   | { type: 'GUILD_SCHEDULED_EVENT_DELETE'; scheduledEvent: GuildScheduledEvent }

@@ -84,7 +84,7 @@ describe('Constants & Enums', () => {
       expect(MESSAGE_FLAGS.IS_CROSSPOST).toBe(2)
       expect(MESSAGE_FLAGS.SUPPRESS_EMBEDS).toBe(4)
       expect(MESSAGE_FLAGS.EPHEMERAL).toBe(64)
-      expect(MESSAGE_FLAGS.IS_COMPONENTS_V2).toBe(MESSAGE_FLAGS.COMPONENTV2)
+      expect(MESSAGE_FLAGS.IS_COMPONENTS_V2).toBe(MESSAGE_FLAGS.IS_COMPONENTS_V2)
     })
 
     it('should allow bitwise OR for multiple flags', () => {
@@ -120,7 +120,7 @@ describe('Constants & Enums', () => {
   })
 
   describe('Package metadata', () => {
-    
+
     it('should export version and name strings', () => {
       expect(typeof CHAMELEON_VERSION).toBe('string')
       expect(typeof CHAMELEON).toBe('string')

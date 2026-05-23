@@ -4,13 +4,8 @@ import { ChameleonGateway, type GatewayPayload } from '../gateway/index.ts'
 import type { ChameleonEvent } from '../events/index.ts'
 import type { User } from '../types/user/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
-import {
-  INTERACTION_TYPES
-} from '../utils/constants.ts'
-import {
-  buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage,
-  resolveChannel
-} from '../builders/index.ts'
+import { INTERACTION_TYPES } from '../utils/constants.ts'
+import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
@@ -70,7 +65,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.channels = new ChannelManager(this.rest, this.cache)
     this.messages = new MessageManager(this.rest, this.cache)
     this.collectors = new CollectorManager(this)
-    
+
     // detect sharding from environment if 'auto'
     let shards: number[] = [0]
     let totalShards = 1
@@ -87,7 +82,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       shards = options.sharding.shards
       totalShards = options.sharding.total
     }
-    
+
     this.totalShards = totalShards
 
     for (const shardId of shards) {
@@ -110,11 +105,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   }
 
   private resolveIntents(intents: IntentResolvable | IntentResolvable[]): number {
+
     if (!Array.isArray(intents)) {
       intents = [intents]
     }
-    
+
     let resolved = 0
+
     for (const intent of intents) {
       if (typeof intent === 'number') {
         resolved |= intent
@@ -151,9 +148,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
     const handlers = this.listeners.get(event)
     if (!handlers) return this
-    
+
     const index = handlers.indexOf(listener as (data: unknown) => void)
-    
+
     if (index !== -1) {
       handlers.splice(index, 1)
     }
@@ -168,7 +165,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.middlewares.push(fn)
     return this
   }
-  
+
   public getShardForGuild(guildId: string): number {
     return Number(BigInt(guildId) >> 22n) % this.totalShards
   }
@@ -185,13 +182,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     userIds?: string | string[]
     nonce?: string
   }): void {
-    
+
     const guildId = Array.isArray(options.guildId) ? options.guildId[0] : options.guildId
     if (!guildId) return
-    
+
     const shardId = this.getShardForGuild(guildId)
     const gw = this.gateways.get(shardId) ?? this.gateway
-    
+
     if (gw) {
       gw.requestGuildMembers(options)
     }
@@ -266,9 +263,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   private emit<K extends keyof EventMap>(event: K, data: EventMap[K]): void {
 
     const handlers = this.listeners.get(event)
-    
+
     if (!handlers) return
-    
+
     for (const handler of handlers) {
       handler(data)
     }
@@ -287,7 +284,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
     const { t } = payload
     const d = payload.d as Record<string, unknown>
-    
+
     if (!t || !d) return
 
     switch (t) {
@@ -298,7 +295,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           this.user = buildUser(d.user as Record<string, unknown>)
           this.cache.users.set(this.user.id, this.user)
         }
-        
+
         if (Array.isArray(d.guilds)) {
           for (const raw of d.guilds as Record<string, unknown>[]) {
             if (raw.unavailable && typeof raw.id === 'string') {
@@ -318,9 +315,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'GUILD_CREATE': {
 
         const guild = buildGuild(d)
-        
+
         let reason: 'hydration' | 'outage' | null = null
-        
+
         if (this.unavailableGuilds.has(guild.id)) {
           this.unavailableGuilds.delete(guild.id)
           reason = 'hydration'
@@ -337,7 +334,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.channels.set(ch.id, ch)
           }
         }
-        
+
         if (Array.isArray(d.roles)) {
           for (const raw of d.roles as Record<string, unknown>[]) {
             const role = buildRole(raw)
@@ -399,7 +396,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
           const shardId = this.getShardForGuild(guild.id)
           const gw = this.gateways.get(shardId) ?? this.gateway
-          
+
           if (gw) {
             gw.requestGuildMembers({
               guildId: guild.id,
@@ -430,7 +427,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         const guildId = d.id as string
         const unavailable = d.unavailable as boolean | undefined
-        
+
         if (unavailable) {
           this.outageGuilds.add(guildId)
           this.dispatch('GUILD_UNAVAILABLE', { type: 'GUILD_UNAVAILABLE', guildId })
@@ -438,7 +435,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           this.cache.guilds.delete(guildId)
           this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId })
         }
-        
+
         break
       }
 
@@ -697,7 +694,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         } else if (d.type === INTERACTION_TYPES.MESSAGE_COMPONENT || d.type === INTERACTION_TYPES.MODAL_SUBMIT) {
           this.components.handleInteraction(d).catch(console.error)
         }
-        
+
         this.dispatch('INTERACTION_CREATE', {
           type: 'INTERACTION_CREATE',
           interaction: d as unknown as import('../types/interaction/index.ts').Interaction
@@ -852,7 +849,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         const guildId = d.guild_id as string
         const members: import('../types/guild/index.ts').Member[] = []
-        
+
         if (Array.isArray(d.members)) {
           for (const raw of d.members as Record<string, unknown>[]) {
             const member = buildMember(raw, guildId, this.cache)
@@ -863,7 +860,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             members.push(member)
           }
         }
-        
+
         const chunkCount = d.chunk_count as number
         const state = this.pendingChunks.get(guildId)
 
@@ -871,7 +868,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
           state.total = chunkCount
           state.received++
-          
+
           if (state.received >= state.total) {
             clearTimeout(state.timeout)
             this.pendingChunks.delete(guildId)

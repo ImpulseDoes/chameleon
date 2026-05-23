@@ -22,7 +22,7 @@ export class EmbedBuilder {
   constructor(data?: Partial<Embed> | Record<string, unknown>) {
 
     this.data = {}
-    
+
     if (!data) return
 
     if ('title' in data) this.data.title = data.title as string
