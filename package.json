@@ -1,5 +1,5 @@
 {
-  "name": "chameleon",
+  "name": "@impulsedev/chameleon",
   "version": "1.1.0",
   "description": "highly optimized, memory-efficient, and fully type-safe Discord API library",
   "main": "dist/index.js",
@@ -26,7 +26,15 @@
     "library",
     "typescript"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ImpulseDoes/chameleon"
+  },
   "author": "impulsedoes",
+  "bugs": {
+    "url": "https://github.com/ImpulseDoes/chameleon/issues"
+  },
+  "homepage": "todo",
   "license": "MIT",
   "type": "module",
   "devDependencies": {
