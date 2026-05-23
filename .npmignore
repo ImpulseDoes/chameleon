@@ -14,3 +14,4 @@ eslint.config.mjs
 ROADMAP.md
 *.md
 !README.md
+.npmrc
