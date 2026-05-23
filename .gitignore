@@ -4,3 +4,4 @@ ROADMAP.md
 node_modules
 .env
 coverage/
+/dist
