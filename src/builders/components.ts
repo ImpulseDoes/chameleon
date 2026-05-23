@@ -1,99 +1,223 @@
 import type { MessageComponent, SelectOption } from '../types/components/index.js'
 import type { Emoji } from '../types/expressions/index.js'
-import { ComponentType, ButtonStyle } from '../types/components/index.js'
+import {
+  ComponentType,
+  ButtonStyle,
+} from '../types/components/index.js'
+
+function serializeEmoji(emoji?: Partial<Emoji>) {
+
+  if (!emoji) return undefined
+
+  return {
+    id: emoji.id,
+    name: emoji.name,
+    animated: emoji.animated,
+  }
+}
 
 export class ButtonBuilder {
 
-  private data: Partial<MessageComponent> = { type: ComponentType.BUTTON }
+  private data: Partial<MessageComponent> = {
+    type: ComponentType.BUTTON,
+  }
 
-  setCustomId(id: string): this { this.data.customId = id; return this }
-  setLabel(label: string): this { this.data.label = label; return this }
-  setStyle(style: number): this { this.data.style = style; return this }
-  setEmoji(emoji: Partial<Emoji>): this { this.data.emoji = emoji; return this }
-  setDisabled(disabled = true): this { this.data.disabled = disabled; return this }
-  setURL(url: string): this { this.data.url = url; this.data.style = ButtonStyle.LINK; return this }
+  setCustomId(id: string): this {
+    this.data.customId = id
+    return this
+  }
 
-  build(): MessageComponent { return { ...this.data } as MessageComponent }
-  toJSON(): MessageComponent { return this.build() }
+  setLabel(label: string): this {
+    this.data.label = label
+    return this
+  }
+
+  setStyle(style: number): this {
+    this.data.style = style
+    return this
+  }
+
+  setEmoji(emoji: Partial<Emoji>): this {
+    this.data.emoji = emoji
+    return this
+  }
+
+  setDisabled(disabled = true): this {
+    this.data.disabled = disabled
+    return this
+  }
+
+  setURL(url: string): this {
+    this.data.url = url
+    this.data.style = ButtonStyle.LINK
+    return this
+  }
+
+  build(): MessageComponent {
+    return {
+      ...this.data,
+    } as MessageComponent
+  }
+
+  toJSON(): any {
+    return {
+      type: ComponentType.BUTTON,
+      custom_id: this.data.customId,
+      label: this.data.label,
+      style: this.data.style,
+      disabled: this.data.disabled,
+      url: this.data.url,
+      emoji: serializeEmoji(this.data.emoji),
+    }
+  }
 }
 
 export class SelectMenuBuilder {
 
-  private data: Partial<MessageComponent> = { type: ComponentType.STRING_SELECT }
+  private data: Partial<MessageComponent> = {
+    type: ComponentType.STRING_SELECT,
+  }
 
-  setCustomId(id: string): this { this.data.customId = id; return this }
-  setPlaceholder(placeholder: string): this { this.data.placeholder = placeholder; return this }
-  setMinValues(min: number): this { this.data.minValues = min; return this }
-  setMaxValues(max: number): this { this.data.maxValues = max; return this }
-  setDisabled(disabled = true): this { this.data.disabled = disabled; return this }
+  setCustomId(id: string): this {
+    this.data.customId = id
+    return this
+  }
+
+  setPlaceholder(placeholder: string): this {
+    this.data.placeholder = placeholder
+    return this
+  }
+
+  setMinValues(min: number): this {
+    this.data.minValues = min
+    return this
+  }
+
+  setMaxValues(max: number): this {
+    this.data.maxValues = max
+    return this
+  }
+
+  setDisabled(disabled = true): this {
+    this.data.disabled = disabled
+    return this
+  }
+
+  setType(type: number): this {
+    this.data.type = type
+    return this
+  }
 
   addOption(option: SelectOption): this {
 
-    if (!this.data.options) this.data.options = []
+    if (!this.data.options) {
+      this.data.options = []
+    }
+
     this.data.options.push(option)
-    
+
     return this
   }
 
   addOptions(...options: SelectOption[]): this {
 
-    if (!this.data.options) this.data.options = []
+    if (!this.data.options) {
+      this.data.options = []
+    }
+
     this.data.options.push(...options)
-    
+
     return this
   }
 
-  setType(type: number): this { this.data.type = type; return this }
+  build(): MessageComponent {
+    return {
+      ...this.data,
+    } as MessageComponent
+  }
 
-  build(): MessageComponent { return { ...this.data } as MessageComponent }
-  toJSON(): MessageComponent { return this.build() }
+  toJSON(): any {
+    return {
+      type: this.data.type ?? ComponentType.STRING_SELECT,
+      custom_id: this.data.customId,
+      placeholder: this.data.placeholder,
+      min_values: this.data.minValues,
+      max_values: this.data.maxValues,
+      disabled: this.data.disabled,
+
+      options: this.data.options?.map(option => ({
+        label: option.label,
+        value: option.value,
+        description: option.description,
+        emoji: serializeEmoji(option.emoji),
+        default: option.default,
+      })),
+    }
+  }
 }
 
 export class TextInputBuilder {
 
-  private data: Partial<MessageComponent> = { type: ComponentType.TEXT_INPUT }
+  private data: Partial<MessageComponent> = {
+    type: ComponentType.TEXT_INPUT,
+  }
 
-  setCustomId(id: string): this { this.data.customId = id; return this }
-  setLabel(label: string): this { this.data.label = label; return this }
-  setStyle(style: number): this { this.data.style = style; return this }
-  setPlaceholder(placeholder: string): this { this.data.placeholder = placeholder; return this }
-  
   private _minLength?: number
   private _maxLength?: number
   private _required?: boolean
   private _value?: string
 
-  setMinLength(length: number) {
+  setCustomId(id: string): this {
+    this.data.customId = id
+    return this
+  }
+
+  setLabel(label: string): this {
+    this.data.label = label
+    return this
+  }
+
+  setStyle(style: number): this {
+    this.data.style = style
+    return this
+  }
+
+  setPlaceholder(placeholder: string): this {
+    this.data.placeholder = placeholder
+    return this
+  }
+
+  setMinLength(length: number): this {
     this._minLength = length
     return this
   }
 
-  setMaxLength(length: number) {
+  setMaxLength(length: number): this {
     this._maxLength = length
     return this
   }
 
-  setRequired(required: boolean = true) {
+  setRequired(required = true): this {
     this._required = required
     return this
   }
 
-  setValue(value: string) {
+  setValue(value: string): this {
     this._value = value
     return this
   }
 
-  build(): MessageComponent { 
-    return { 
-      ...this.data, 
-      minLength: this._minLength, 
-      maxLength: this._maxLength, 
-      required: this._required, 
-      value: this._value 
-    } as MessageComponent 
+  build(): MessageComponent {
+    return {
+      ...this.data,
+      minLength: this._minLength,
+      maxLength: this._maxLength,
+      required: this._required,
+      value: this._value,
+    } as MessageComponent
   }
 
-  toJSON(): any { 
+  toJSON(): any {
     return {
       type: ComponentType.TEXT_INPUT,
       custom_id: this.data.customId,
@@ -103,56 +227,111 @@ export class TextInputBuilder {
       min_length: this._minLength,
       max_length: this._maxLength,
       required: this._required,
-      value: this._value
-    } 
+      value: this._value,
+    }
   }
 }
 
 export class ActionRowBuilder {
 
-  private data: MessageComponent = { type: ComponentType.ACTION_ROW, components: [] }
+  private data: MessageComponent = {
+    type: ComponentType.ACTION_ROW,
+    components: [],
+  }
 
-  addComponent(component: MessageComponent | { build(): MessageComponent }): this {
-    
-    const built = 'build' in component && typeof component.build === 'function'
-      ? component.build()
-      : component as MessageComponent
+  addComponent(
+    component:
+      | MessageComponent
+      | { build(): MessageComponent }
+      | { toJSON(): any },
+  ): this {
 
-    this.data.components!.push(built)
+    this.data.components!.push(component as any)
 
     return this
   }
 
-  addComponents(...components: (MessageComponent | { build(): MessageComponent })[]): this {
+  addComponents(
+    ...components: (
+      | MessageComponent
+      | { build(): MessageComponent }
+      | { toJSON(): any }
+    )[]
+  ): this {
 
-    for (const c of components) this.addComponent(c)
-    
-      return this
+    for (const component of components) {
+      this.addComponent(component)
+    }
+
+    return this
   }
 
-  build(): MessageComponent { return { ...this.data, components: [...this.data.components!] } }
-  toJSON(): MessageComponent { return this.build() }
+  build(): MessageComponent {
+    return {
+      ...this.data,
+      components: [...this.data.components!],
+    }
+  }
+
+  toJSON(): any {
+    return {
+      type: ComponentType.ACTION_ROW,
+
+      components: this.data.components?.map(component => {
+
+        if (
+          component &&
+          typeof (component as any).toJSON === 'function'
+        ) {
+          return (component as any).toJSON()
+        }
+
+        return component
+      }),
+    }
+  }
 }
 
 export class ModalBuilder {
 
   private _title = ''
   private _customId = ''
-  private _components: MessageComponent[] = []
+  private _components: any[] = []
 
-  setTitle(title: string): this { this._title = title; return this }
-  setCustomId(id: string): this { this._customId = id; return this }
-
-  addComponent(row: MessageComponent | { build(): MessageComponent }): this {
-    const built = 'build' in row && typeof row.build === 'function'
-      ? row.build()
-      : row as MessageComponent
-    this._components.push(built)
+  setTitle(title: string): this {
+    this._title = title
     return this
   }
 
-  addComponents(...rows: (MessageComponent | { build(): MessageComponent })[]): this {
-    for (const r of rows) this.addComponent(r)
+  setCustomId(id: string): this {
+    this._customId = id
+    return this
+  }
+
+  addComponent(
+    component:
+      | MessageComponent
+      | { build(): MessageComponent }
+      | { toJSON(): any },
+  ): this {
+
+    this._components.push(component)
+
+    return this
+  }
+
+  addComponents(
+    ...components: (
+      | MessageComponent
+      | { build(): MessageComponent }
+      | { toJSON(): any }
+    )[]
+  ): this {
+
+    for (const component of components) {
+      this.addComponent(component)
+    }
+
     return this
   }
 
@@ -160,9 +339,26 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-      components: [...this._components]
+      components: [...this._components],
     }
   }
 
-  toJSON() { return this.build() }
+  toJSON() {
+    return {
+      title: this._title,
+      custom_id: this._customId,
+
+      components: this._components.map(component => {
+
+        if (
+          component &&
+          typeof component.toJSON === 'function'
+        ) {
+          return component.toJSON()
+        }
+
+        return component
+      }),
+    }
+  }
 }
