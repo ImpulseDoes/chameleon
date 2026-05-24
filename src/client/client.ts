@@ -3,6 +3,7 @@ import { ChameleonREST } from '../rest/index.ts'
 import { ChameleonGateway, type GatewayPayload } from '../gateway/index.ts'
 import type { ChameleonEvent } from '../events/index.ts'
 import type { User } from '../types/user/index.ts'
+import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import { INTERACTION_TYPES } from '../utils/constants.ts'
 import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel } from '../builders/index.ts'
@@ -37,7 +38,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public user: User | null = null
   private unavailableGuilds = new Set<string>()
   private outageGuilds = new Set<string>()
-  private pendingChunks = new Map<string, { received: number, total: number, reason: 'hydration' | 'outage' | null, guild: any, timeout: NodeJS.Timeout }>()
+  private pendingChunks = new Map<string, { received: number, total: number, reason: 'hydration' | 'outage' | null, guild: Guild, timeout: NodeJS.Timeout }>()
   public debug: boolean
   public commands: CommandManager
   public components: ComponentManager
