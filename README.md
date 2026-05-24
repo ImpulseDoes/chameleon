@@ -1,22 +1,22 @@
-# Chameleon
+# <img src="./media/discordchameleon.png" height="120" valign="middle"/> Chameleon
 
-Chameleon is a type-safe Discord API framework design around memory efficiency
+Chameleon is a type-safe Discord API framework designed around memory efficiency. 
 
 Designed for development of ...
 
 ### What we do different?
 
-- we store timestamps in milliseconds instead of Discord ISO8601 timestamps
-- we store all structs in POJOs instead of classes
-- all gateway events are strict discriminated unions
+- We store timestamps in milliseconds instead of Discord ISO8601 timestamps
+- We store all structs in POJOs instead of classes
+- All gateway events are strict discriminated unions
 
 ### Bugs?
 
-- yes, ton of 'em
+- Yes, ton of 'em
 
 ### Related Structs
 
-If possible, chameleon will attach the struct of related resources
+If possible, Chameleon will attach the struct of related resources
 
 ### Documentation
 
