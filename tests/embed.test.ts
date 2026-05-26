@@ -138,15 +138,15 @@ describe('EmbedBuilder', () => {
       title: 'From API',
       description: 'Desc',
       color: 0x00FF00,
-      author: { name: 'Auth', icon_url: 'https://icon.png' },
-      footer: { text: 'Foot', icon_url: 'https://foot.png' },
-      image: { url: 'https://img.png', proxy_url: 'https://proxy.png', width: 100, height: 200 },
+      author: { name: 'Auth', iconUrl: 'https://icon.png' },
+      footer: { text: 'Foot', iconUrl: 'https://foot.png' },
+      image: { url: 'https://img.png', proxyUrl: 'https://proxy.png', width: 100, height: 200 },
       thumbnail: { url: 'https://th.png' },
       fields: [{ name: 'F', value: 'V', inline: true }],
       timestamp: '2025-06-01T00:00:00.000Z'
     }
 
-    const embed = new EmbedBuilder(raw as any)
+    const embed = new EmbedBuilder(raw as unknown)
     const json = embed.toJSON()
 
     expect(json.title).toBe('From API')

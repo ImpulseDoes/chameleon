@@ -1,53 +1,58 @@
 import type { Client } from '../client/client.js'
 import { ComponentContext } from './context.js'
 import { buildUser, buildChannel, resolveChannel } from '../builders/index.js'
+import type { ComponentHandler } from '../commands/manager.js'
 
 export class ComponentManager {
 
-  private handlers = new Map<string, any>()
+  private handlers = new Map<string, ComponentHandler>()
 
   constructor(private client: Client) {}
 
-  public register(...components: any[]): void {
+  public register(...components: ComponentHandler[]): void {
 
     for (const comp of components) {
-      
-      if (comp.customId) {
+
+      if (comp.customId && typeof comp.customId === 'string') {
         this.handlers.set(comp.customId, comp)
       }
     }
   }
 
-  public async handleInteraction(raw: Record<string, any>): Promise<void> {
+  public async handleInteraction(raw: Record<string, unknown>): Promise<void> {
 
-    const data = raw.data as Record<string, any>
+    const data = raw.data as Record<string, unknown> | undefined
+    if (!data) return
+
     const customId = data.custom_id as string
-    
     if (!customId) return
 
     const handler = this.handlers.get(customId)
     if (!handler || !handler.execute) return
 
-    const user = buildUser(raw.user ?? raw.member?.user)
-    
+    const userRaw = (raw.member as Record<string, unknown> | undefined)?.user ?? raw.user
+    const user = buildUser(userRaw as Record<string, unknown>)
+
     let guild
     if (raw.guild_id) {
-      guild = this.client.cache.guilds.get(raw.guild_id) ?? { id: raw.guild_id }
+      guild = this.client.cache.guilds.get(raw.guild_id as string) ?? { id: raw.guild_id as string }
     }
-    
+
     let channel
     if (raw.channel_id) {
-      channel = resolveChannel(raw.channel_id, this.client.cache) ?? { id: raw.channel_id }
+      channel = resolveChannel(raw.channel_id as string, this.client) ?? { id: raw.channel_id as string }
     }
 
     // Hydrate members from resolved data for select menus
-    if (data.resolved?.members && data.resolved?.users && raw.guild_id) {
-      for (const [id, memberData] of Object.entries(data.resolved.members as Record<string, any>)) {
+    const resolved = data.resolved as Record<string, Record<string, Record<string, unknown>>> | undefined
 
-        const userData = (data.resolved.users as Record<string, any>)[id]
-        
+    if (resolved?.members && resolved?.users && raw.guild_id) {
+
+      for (const [id] of Object.entries(resolved.members)) {
+
+        const userData = resolved.users[id]
+
         if (userData) {
-          const mergedMember = { ...memberData, user: userData }
           const u = buildUser(userData)
           this.client.cache.users.set(u.id, u)
         }
@@ -56,16 +61,16 @@ export class ComponentManager {
 
     const ctx = new ComponentContext(this.client, raw, user, guild, channel)
 
-    if (handler.type === 'user_select' && data.resolved?.users) {
-      ctx.values = ctx.values.map((id: string) => {
-        const uData = (data.resolved!.users as Record<string, any>)[id]
+    if (handler.type === 'user_select' && resolved?.users) {
+      ctx.values = (ctx.values as string[]).map((id: string) => {
+        const uData = resolved.users![id]
         return uData ? buildUser(uData) : { id }
-      })
-    } else if (handler.type === 'channel_select' && data.resolved?.channels) {
-      ctx.values = ctx.values.map((id: string) => {
-        const cData = (data.resolved!.channels as Record<string, any>)[id]
-        return cData ? buildChannel(cData, raw.guild_id) : { id }
-      })
+      }) as typeof ctx.values
+    } else if (handler.type === 'channel_select' && resolved?.channels) {
+      ctx.values = (ctx.values as string[]).map((id: string) => {
+        const cData = resolved.channels![id]
+        return cData ? buildChannel(cData, raw.guild_id as string | undefined) : { id }
+      }) as typeof ctx.values
     }
 
     try {

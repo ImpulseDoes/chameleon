@@ -192,9 +192,9 @@ describe('ActionRow', () => {
 
     expect(row.type).toBe(COMPONENT_TYPES.ACTION_ROW)
     expect(row.components).toHaveLength(1)
-    expect(row.components[0].type).toBe(COMPONENT_TYPES.BUTTON)
-    expect(row.components[0].label).toBe('OK')
-    expect(row.components[0].style).toBe(3) // success
+    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.BUTTON)
+    expect((row.components[0] as Record<string, unknown>).label).toBe('OK')
+    expect((row.components[0] as Record<string, unknown>).style).toBe(3)
   })
 
   it('should wrap a string select into an action row', () => {
@@ -206,8 +206,8 @@ describe('ActionRow', () => {
     })
 
     const row = ActionRow.of(sel)
-    expect(row.components[0].type).toBe(COMPONENT_TYPES.STRING_SELECT)
-    expect(row.components[0].options).toHaveLength(1)
+    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.STRING_SELECT)
+    expect((row.components[0] as Record<string, unknown>).options).toHaveLength(1)
   })
 
   it('should wrap user/role/channel/mentionable selects', () => {
@@ -217,10 +217,10 @@ describe('ActionRow', () => {
     const channel = defineChannelSelect({ customId: 'ch', execute: async () => {} })
     const mentionable = defineMentionableSelect({ customId: 'm', execute: async () => {} })
 
-    expect(ActionRow.of(user).components[0].type).toBe(COMPONENT_TYPES.USER_SELECT)
-    expect(ActionRow.of(role).components[0].type).toBe(COMPONENT_TYPES.ROLE_SELECT)
-    expect(ActionRow.of(channel).components[0].type).toBe(COMPONENT_TYPES.CHANNEL_SELECT)
-    expect(ActionRow.of(mentionable).components[0].type).toBe(COMPONENT_TYPES.MENTIONABLE_SELECT)
+    expect((ActionRow.of(user).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.USER_SELECT)
+    expect((ActionRow.of(role).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.ROLE_SELECT)
+    expect((ActionRow.of(channel).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.CHANNEL_SELECT)
+    expect((ActionRow.of(mentionable).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.MENTIONABLE_SELECT)
   })
 
   it('should wrap text input fields', () => {
@@ -228,9 +228,9 @@ describe('ActionRow', () => {
     const f = field.short('name', 'Your Name')
     const row = ActionRow.of(f)
 
-    expect(row.components[0].type).toBe(COMPONENT_TYPES.TEXT_INPUT)
-    expect(row.components[0].style).toBe(TEXT_INPUT_STYLES.SHORT)
-    expect(row.components[0].label).toBe('Your Name')
+    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.TEXT_INPUT)
+    expect((row.components[0] as Record<string, unknown>).style).toBe(TEXT_INPUT_STYLES.SHORT)
+    expect((row.components[0] as Record<string, unknown>).label).toBe('Your Name')
   })
 
   it('should strip undefined keys from output', () => {
@@ -243,7 +243,7 @@ describe('ActionRow', () => {
     })
 
     const row = ActionRow.of(btn)
-    const comp = row.components[0]
+    const comp = row.components[0] as Record<string, unknown>
 
     expect(Object.keys(comp)).not.toContain('url')
     expect(Object.keys(comp)).not.toContain('emoji')
@@ -255,7 +255,7 @@ describe('ActionRow', () => {
     const raw = { type: 999, custom_id: 'raw' }
     const row = ActionRow.of(raw)
 
-    expect(row.components[0].type).toBe(999)
+    expect((row.components[0] as Record<string, unknown>).type).toBe(999)
   })
 
   it('should handle multiple buttons in one row', () => {
@@ -267,8 +267,8 @@ describe('ActionRow', () => {
     const row = ActionRow.of(a, b, c)
     
     expect(row.components).toHaveLength(3)
-    expect(row.components[0].style).toBe(1) // primary
-    expect(row.components[1].style).toBe(4) // danger
-    expect(row.components[2].style).toBe(2) // secondary
+    expect((row.components[0] as Record<string, unknown>).style).toBe(1) // primary
+    expect((row.components[1] as Record<string, unknown>).style).toBe(4) // danger
+    expect((row.components[2] as Record<string, unknown>).style).toBe(2) // secondary
   })
 })

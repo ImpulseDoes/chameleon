@@ -6,7 +6,7 @@ import type { User } from '../types/user/index.ts'
 import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import { INTERACTION_TYPES } from '../utils/constants.ts'
-import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel } from '../builders/index.ts'
+import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
@@ -355,26 +355,30 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         }
 
         if (Array.isArray(d.emojis)) {
-          for (const raw of d.emojis as import('../types/expressions/index.ts').Emoji[]) {
-            this.cache.emojis.set(raw.id as string, raw)
+          for (const raw of d.emojis as Record<string, unknown>[]) {
+            const emoji = buildEmoji(raw)
+            if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
           }
         }
 
         if (Array.isArray(d.stickers)) {
-          for (const raw of d.stickers as import('../types/expressions/index.ts').Sticker[]) {
-            this.cache.stickers.set(raw.id, raw)
+          for (const raw of d.stickers as Record<string, unknown>[]) {
+            const sticker = buildSticker(raw)
+            this.cache.stickers.set(sticker.id, sticker)
           }
         }
 
         if (Array.isArray(d.stage_instances)) {
-          for (const raw of d.stage_instances as import('../types/stage/index.ts').StageInstance[]) {
-            this.cache.stageInstances.set(raw.id, raw)
+          for (const raw of d.stage_instances as Record<string, unknown>[]) {
+            const stage = buildStageInstance(raw)
+            this.cache.stageInstances.set(stage.id, stage)
           }
         }
 
         if (Array.isArray(d.guild_scheduled_events)) {
-          for (const raw of d.guild_scheduled_events as import('../types/scheduled/index.ts').GuildScheduledEvent[]) {
-            this.cache.scheduledEvents.set(raw.id, raw)
+          for (const raw of d.guild_scheduled_events as Record<string, unknown>[]) {
+            const event = buildScheduledEvent(raw)
+            this.cache.scheduledEvents.set(event.id, event)
           }
         }
 
@@ -587,7 +591,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         this.dispatch('MESSAGE_CREATE', {
           type: 'MESSAGE_CREATE',
           message,
-          channel: resolveChannel(message.channelId, this.cache) as import('../events/index.ts').PartialChannel
+          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel
         })
         break
       }
@@ -599,7 +603,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         this.dispatch('MESSAGE_UPDATE', {
           type: 'MESSAGE_UPDATE',
           message,
-          channel: resolveChannel(message.channelId, this.cache) as import('../events/index.ts').PartialChannel,
+          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel,
           ...(oldMessage ? { oldMessage } : {})
         })
         break
@@ -700,7 +704,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         this.dispatch('INTERACTION_CREATE', {
           type: 'INTERACTION_CREATE',
-          interaction: d as unknown as import('../types/interaction/index.ts').Interaction
+          interaction: buildInteraction(d as Record<string, unknown>, this.cache)
         })
         break
       }
@@ -708,7 +712,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'VOICE_STATE_UPDATE': {
         this.dispatch('VOICE_STATE_UPDATE', {
           type: 'VOICE_STATE_UPDATE',
-          voiceState: d as unknown as import('../types/voice/index.ts').Voice
+          voiceState: buildVoiceState(d as Record<string, unknown>, this.cache)
         })
         break
       }
@@ -761,15 +765,15 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'ENTITLEMENT_CREATE': {
-        this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
+        this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
       case 'ENTITLEMENT_UPDATE': {
-        this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
+        this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
       case 'ENTITLEMENT_DELETE': {
-        this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
+        this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
 
@@ -916,7 +920,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'GUILD_EMOJIS_UPDATE': {
-        const emojis = d.emojis as import('../types/expressions/index.ts').Emoji[]
+        const emojis = (d.emojis as Record<string, unknown>[]).map(raw => buildEmoji(raw))
         for (const emoji of emojis) {
           if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
         }
@@ -929,7 +933,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'GUILD_STICKERS_UPDATE': {
-        const stickers = d.stickers as import('../types/expressions/index.ts').Sticker[]
+        const stickers = (d.stickers as Record<string, unknown>[]).map(raw => buildSticker(raw))
         for (const sticker of stickers) {
           this.cache.stickers.set(sticker.id, sticker)
         }
@@ -942,38 +946,38 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'STAGE_INSTANCE_CREATE': {
-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.set(stageInstance.id, stageInstance)
         this.dispatch('STAGE_INSTANCE_CREATE', { type: 'STAGE_INSTANCE_CREATE', stageInstance })
         break
       }
       case 'STAGE_INSTANCE_UPDATE': {
-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.set(stageInstance.id, stageInstance)
         this.dispatch('STAGE_INSTANCE_UPDATE', { type: 'STAGE_INSTANCE_UPDATE', stageInstance })
         break
       }
       case 'STAGE_INSTANCE_DELETE': {
-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
+        const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.delete(stageInstance.id)
         this.dispatch('STAGE_INSTANCE_DELETE', { type: 'STAGE_INSTANCE_DELETE', stageInstance })
         break
       }
 
       case 'GUILD_SCHEDULED_EVENT_CREATE': {
-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
         this.dispatch('GUILD_SCHEDULED_EVENT_CREATE', { type: 'GUILD_SCHEDULED_EVENT_CREATE', scheduledEvent })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_UPDATE': {
-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
         this.dispatch('GUILD_SCHEDULED_EVENT_UPDATE', { type: 'GUILD_SCHEDULED_EVENT_UPDATE', scheduledEvent })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_DELETE': {
-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
+        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.delete(scheduledEvent.id)
         this.dispatch('GUILD_SCHEDULED_EVENT_DELETE', { type: 'GUILD_SCHEDULED_EVENT_DELETE', scheduledEvent })
         break
@@ -988,19 +992,19 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'AUTO_MODERATION_RULE_CREATE': {
-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.set(rule.id, rule)
         this.dispatch('AUTO_MODERATION_RULE_CREATE', { type: 'AUTO_MODERATION_RULE_CREATE', rule })
         break
       }
       case 'AUTO_MODERATION_RULE_UPDATE': {
-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.set(rule.id, rule)
         this.dispatch('AUTO_MODERATION_RULE_UPDATE', { type: 'AUTO_MODERATION_RULE_UPDATE', rule })
         break
       }
       case 'AUTO_MODERATION_RULE_DELETE': {
-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
+        const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.delete(rule.id)
         this.dispatch('AUTO_MODERATION_RULE_DELETE', { type: 'AUTO_MODERATION_RULE_DELETE', rule })
         break
@@ -1023,13 +1027,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INTEGRATION_CREATE': {
-        const integration = d as unknown as import('../types/integration/index.ts').Integration
+        const integration = buildIntegration(d as Record<string, unknown>)
         this.cache.integrations.set(integration.id, integration)
         this.dispatch('INTEGRATION_CREATE', { type: 'INTEGRATION_CREATE', guildId: d.guild_id as string, integration })
         break
       }
       case 'INTEGRATION_UPDATE': {
-        const integration = d as unknown as import('../types/integration/index.ts').Integration
+        const integration = buildIntegration(d as Record<string, unknown>)
         this.cache.integrations.set(integration.id, integration)
         this.dispatch('INTEGRATION_UPDATE', { type: 'INTEGRATION_UPDATE', guildId: d.guild_id as string, integration })
         break

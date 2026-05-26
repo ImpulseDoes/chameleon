@@ -4,9 +4,12 @@ import type { Guild, Member, Role } from '../types/guild/index.js'
 import type { Message } from '../types/message/index.js'
 import type { Emoji } from '../types/expressions/index.js'
 import type { TongueStore } from '../client/store.js'
+import type { Client } from '../client/client.js'
+import type { ChameleonAPIResult } from '../rest/types.js'
 
 export * from './embed.js'
 export * from './components.js'
+export * from './entities.js'
 
 export function buildUser(raw: Record<string, unknown>): User {
   return {
@@ -28,6 +31,7 @@ export function buildUser(raw: Record<string, unknown>): User {
 }
 
 export function buildChannel(raw: Record<string, unknown>, guildId?: string): Channel {
+
   return {
     id: raw.id as string,
     type: raw.type as number,
@@ -46,6 +50,7 @@ export function buildChannel(raw: Record<string, unknown>, guildId?: string): Ch
 }
 
 export function buildGuild(raw: Record<string, unknown>): Guild {
+
   return {
     id: raw.id as string,
     name: raw.name as string,
@@ -81,6 +86,7 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
 }
 
 export function buildRole(raw: Record<string, unknown>): Role {
+  
   return {
     id: raw.id as string,
     name: raw.name as string,
@@ -157,18 +163,22 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
   return msg
 }
 
-export function resolveChannel(channelId: string, cache: TongueStore): Channel | { id: string } {
-  return cache.channels.get(channelId) ?? { id: channelId }
+export function resolveChannel(channelId: string, client: Client): Channel | { id: string, fetch: () => Promise<ChameleonAPIResult<Channel>> } {
+  return client.cache.channels.get(channelId) ?? { id: channelId, fetch: () => client.channels.fetch(channelId) }
 }
 
-export function resolveGuild(guildId: string, cache: TongueStore): Guild | { id: string } {
-  return cache.guilds.get(guildId) ?? { id: guildId }
+export function resolveGuild(guildId: string, client: Client): Guild | { id: string, fetch: () => Promise<ChameleonAPIResult<Guild>> } {
+  return client.cache.guilds.get(guildId) ?? { id: guildId, fetch: () => client.guilds.fetch(guildId) }
 }
 
-export function resolveUser(userId: string, cache: TongueStore): User | { id: string } {
-  return cache.users.get(userId) ?? { id: userId }
+export function resolveUser(userId: string, client: Client): User | { id: string, fetch: () => Promise<ChameleonAPIResult<User>> } {
+  return client.cache.users.get(userId) ?? { id: userId, fetch: () => client.users.fetch(userId) }
 }
 
-export function resolveRole(roleId: string, cache: TongueStore): Role | { id: string } {
-  return cache.roles.get(roleId) ?? { id: roleId }
+export function resolveRole(roleId: string, client: Client, guildId?: string): Role | { id: string, fetch?: () => Promise<ChameleonAPIResult<Role>> } {
+  
+  const stub: { id: string, fetch?: () => Promise<ChameleonAPIResult<Role>> } = { id: roleId }
+  if (guildId) stub.fetch = () => client.guilds.roles(guildId).fetch(roleId)
+
+  return client.cache.roles.get(roleId) ?? stub
 }

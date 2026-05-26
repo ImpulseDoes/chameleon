@@ -131,7 +131,7 @@ export class ChameleonGateway {
     this.ws.send(JSON.stringify({ op, d }))
   }
 
-  public pendingPresence: Record<string, any> | null = null
+  public pendingPresence: Record<string, unknown> | null = null
 
   /**
    * Update the presence/status for this shard
@@ -189,7 +189,7 @@ export class ChameleonGateway {
       throw new Error('[GATEWAY] Cannot request guild members while disconnected')
     }
 
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       guild_id: options.guildId,
       limit: options.limit,
     }

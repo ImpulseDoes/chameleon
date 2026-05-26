@@ -2,40 +2,39 @@ import type { Client } from '../client/client.js'
 import type { User } from '../types/user/index.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
-import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES } from '../utils/constants.js'
+import type { Embed } from '../types/message/index.js'
+import type { MessageComponent } from '../types/components/index.js'
+import { serializeComponent } from '../builders/index.js'
+import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
 
 export type InteractionReplyOptions = string | {
   content?: string
-  embeds?: any[]
-  components?: any[]
+  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
   ephemeral?: boolean
 }
 
-export class CommandContext<Options = Record<string, any>> {
-
-  public options: Options
+export class BaseInteractionContext {
   public user: User
   public guild?: Guild | { id: string } | undefined
   public channel?: Channel | { id: string } | undefined
   public interactionId: string
   public interactionToken: string
 
-  private _client: Client
-  private _deferred = false
-  private _replied = false
+  protected _client: Client
+  protected _deferred = false
+  protected _replied = false
 
   constructor(
     client: Client,
-    rawInteraction: Record<string, any>,
-    parsedOptions: Options,
+    raw: Record<string, unknown>,
     user: User,
     guild?: Guild | { id: string },
     channel?: Channel | { id: string }
   ) {
     this._client = client
-    this.interactionId = rawInteraction.id
-    this.interactionToken = rawInteraction.token
-    this.options = parsedOptions
+    this.interactionId = raw.id as string
+    this.interactionToken = raw.token as string
     this.user = user
     this.guild = guild
     this.channel = channel
@@ -44,12 +43,34 @@ export class CommandContext<Options = Record<string, any>> {
   get replied() { return this._replied }
   get deferred() { return this._deferred }
 
+  protected _resolvePayload(payload: InteractionReplyOptions): Record<string, unknown> {
+
+    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
+    
+    if (typeof payload === 'object') {
+      
+      if (payload.ephemeral) data.flags = MESSAGE_FLAGS.EPHEMERAL
+      if (payload.embeds) {
+        data.embeds = payload.embeds.map((e: unknown) => {
+          if (e && typeof (e as Record<string, unknown>).toJSON === 'function') {
+            return (e as { toJSON(): Record<string, unknown> }).toJSON()
+          }
+          return e
+        })
+      }
+
+      if (payload.components) {
+        data.components = payload.components.map(c => serializeComponent(c))
+      }
+    }
+    return data
+  }
+
   async reply(payload: InteractionReplyOptions): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+    const data = this._resolvePayload(payload)
 
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -64,36 +85,33 @@ export class CommandContext<Options = Record<string, any>> {
     
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-      data: {
-        flags: options?.ephemeral ? 64 : 0
-      }
+      data: { flags: options?.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0 }
     })
     this._deferred = true
   }
 
   async followUp(payload: InteractionReplyOptions): Promise<void> {
+
+    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
     
-    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged. Use reply or defer first.')
-    
-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+    const data = this._resolvePayload(payload)
 
     await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
   }
 
-  async showModal(modal: any): Promise<void> {
+  async showModal(modal: Record<string, unknown>): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const payload = modal.type === 'modal' ? {
       custom_id: modal.customId,
       title: modal.title,
-      components: modal.fields.map((f: any) => ({
+      components: Array.isArray(modal.fields) ? modal.fields.map((f: Record<string, unknown>) => ({
         type: COMPONENT_TYPES.ACTION_ROW,
         components: [{
           type: COMPONENT_TYPES.TEXT_INPUT,
           custom_id: f.id,
-          style: f.type, // 1 short, 2 paragraph
+          style: f.type,
           label: f.label,
           required: f.required,
           min_length: f.minLength,
@@ -101,7 +119,7 @@ export class CommandContext<Options = Record<string, any>> {
           placeholder: f.placeholder,
           value: f.value
         }]
-      }))
+      })) : []
     } : modal
 
     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
@@ -109,5 +127,22 @@ export class CommandContext<Options = Record<string, any>> {
       data: payload
     })
     this._replied = true
+  }
+}
+
+export class CommandContext<Options = Record<string, unknown>> extends BaseInteractionContext {
+  
+  public options: Options
+
+  constructor(
+    client: Client,
+    rawInteraction: Record<string, unknown>,
+    parsedOptions: Options,
+    user: User,
+    guild?: Guild | { id: string },
+    channel?: Channel | { id: string }
+  ) {
+    super(client, rawInteraction, user, guild, channel)
+    this.options = parsedOptions
   }
 }

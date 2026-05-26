@@ -1,5 +1,3 @@
-import type { User } from '../user/index.js'
-
 export const AutoModerationEventType = {
   MESSAGE_SEND: 1,
   MEMBER_UPDATE: 2

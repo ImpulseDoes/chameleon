@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { TEST_ENTITIES } from './mock/dataTest.js'
 import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild } from '../src/builders/index.ts'
 import { TongueStore } from '../src/client/store.ts'
+import type { Client } from '../src/client/client.ts'
 import type { Channel } from '../src/types/channel/index.ts'
 import type { Guild, Role } from '../src/types/guild/index.ts'
 import type { User } from '../src/types/user/index.ts'
@@ -66,23 +67,24 @@ describe('Chameleon Entity Resolvers', () => {
   it('should resolve from cache or fallback to ID', () => {
 
     const cache = new TongueStore()
+    const client = { cache } as unknown as Client
     
     cache.channels.set('ch1', { id: 'ch1', type: 0 } as unknown as Channel)
     cache.guilds.set('g1', { id: 'g1', name: 'g' } as unknown as Guild)
     cache.users.set('u1', { id: 'u1', username: 'u' } as unknown as User)
     cache.roles.set('r1', { id: 'r1', name: 'r' } as unknown as Role)
 
-    expect(resolveChannel('ch1', cache)).toHaveProperty('type', 0)
-    expect(resolveChannel('ch2', cache)).toEqual({ id: 'ch2' })
+    expect(resolveChannel('ch1', client)).toHaveProperty('type', 0)
+    expect(resolveChannel('ch2', client)).toEqual(expect.objectContaining({ id: 'ch2' }))
 
-    expect(resolveGuild('g1', cache)).toHaveProperty('name', 'g')
-    expect(resolveGuild('g2', cache)).toEqual({ id: 'g2' })
+    expect(resolveGuild('g1', client)).toHaveProperty('name', 'g')
+    expect(resolveGuild('g2', client)).toEqual(expect.objectContaining({ id: 'g2' }))
 
-    expect(resolveUser('u1', cache)).toHaveProperty('username', 'u')
-    expect(resolveUser('u2', cache)).toEqual({ id: 'u2' })
+    expect(resolveUser('u1', client)).toHaveProperty('username', 'u')
+    expect(resolveUser('u2', client)).toEqual(expect.objectContaining({ id: 'u2' }))
 
-    expect(resolveRole('r1', cache)).toHaveProperty('name', 'r')
-    expect(resolveRole('r2', cache)).toEqual({ id: 'r2' })
+    expect(resolveRole('r1', client)).toHaveProperty('name', 'r')
+    expect(resolveRole('r2', client)).toEqual(expect.objectContaining({ id: 'r2' }))
   })
 })
 

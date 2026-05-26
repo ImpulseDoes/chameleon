@@ -1,4 +1,4 @@
-import type { Embed, EmbedField, EmbedFooter, EmbedAuthor, EmbedImage } from '../types/message/index.js'
+import type { Embed, EmbedField } from '../types/message/index.js'
 
 export const Colors = {
   Blue: 0x1e90ff,
@@ -144,12 +144,18 @@ export class EmbedBuilder {
 	if (e.image?.url) {
 		payload.image = {
 			url: e.image.url,
+			...(e.image.proxyUrl ? { proxy_url: e.image.proxyUrl } : {}),
+			...(typeof e.image.width === 'number' ? { width: e.image.width } : {}),
+			...(typeof e.image.height === 'number' ? { height: e.image.height } : {})
 		}
 	}
 
 	if (e.thumbnail?.url) {
 		payload.thumbnail = {
 			url: e.thumbnail.url,
+			...(e.thumbnail.proxyUrl ? { proxy_url: e.thumbnail.proxyUrl } : {}),
+			...(typeof e.thumbnail.width === 'number' ? { width: e.thumbnail.width } : {}),
+			...(typeof e.thumbnail.height === 'number' ? { height: e.thumbnail.height } : {})
 		}
 	}
 

@@ -56,10 +56,10 @@ describe('SelectMenuBuilder', () => {
     const json = sel.toJSON()
 
     expect(json.type).toBe(ComponentType.STRING_SELECT)
-    expect(json.customId).toBe('sel')
+    expect(json.custom_id).toBe('sel')
     expect(json.placeholder).toBe('Pick')
-    expect(json.minValues).toBe(1)
-    expect(json.maxValues).toBe(3)
+    expect(json.min_values).toBe(1)
+    expect(json.max_values).toBe(3)
     expect(json.disabled).toBe(true)
     expect(json.options).toHaveLength(3)
   })
@@ -110,8 +110,8 @@ describe('ActionRowBuilder', () => {
 
     expect(built.type).toBe(ComponentType.ACTION_ROW)
     expect(built.components).toHaveLength(2)
-    expect(built.components?.[0]?.customId).toBe('b1')
-    expect(built.components?.[1]?.customId).toBe('b2')
+    expect((built.components?.[0] as Record<string, unknown>)?.customId).toBe('b1')
+    expect((built.components?.[1] as Record<string, unknown>)?.customId).toBe('b2')
 
     const json = row.toJSON()
 

@@ -77,7 +77,7 @@ describe('GuildManager', () => {
     manager['rest'].delete = vi.fn().mockResolvedValue({ ok: true })
     
     // Add fake member to cache to test deletion
-    client.cache.members.set('g1_u1', {} as any)
+    client.cache.members.set('g1_u1', {} as unknown)
 
     const res = await manager.kick('g1', 'u1', 'nga')
 

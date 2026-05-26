@@ -13,7 +13,7 @@ function mockRest(response: unknown) {
     put: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
-  } as any
+  } as unknown
 }
 
 describe('Managers', () => {
@@ -103,7 +103,7 @@ describe('Managers', () => {
     const store = new TongueStore()
     const rest = {
       get: vi.fn().mockResolvedValue({ ok: false, status: 404, message: 'Unknown User' }),
-    } as any
+    } as unknown
 
     const users = new UserManager(rest, store)
     const result = await users.fetch('999')

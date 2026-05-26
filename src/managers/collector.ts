@@ -1,8 +1,8 @@
 import type { Client } from '../client/client.js'
 import type { Message } from '../types/message/index.js'
-import { ComponentContext } from '../commands/interactions.js'
+import { ComponentContext } from '../components/context.js'
 import { resolveGuild, resolveChannel, buildUser } from '../builders/index.js'
-import { COMPONENT_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
+import { INTERACTION_TYPES } from '../utils/constants.js'
 
 export interface AwaitMessagesOptions {
   filter?: (message: Message) => boolean
@@ -51,10 +51,10 @@ export class CollectorManager {
       const cleanup = () => {
         if (timeoutId) clearTimeout(timeoutId)
 
-        this.client.off('MESSAGE_CREATE', handler as any)
+        this.client.off('MESSAGE_CREATE', handler)
       }
 
-      this.client.on('MESSAGE_CREATE', handler as any)
+      this.client.on('MESSAGE_CREATE', handler)
 
       if (time > 0) {
         timeoutId = setTimeout(() => {
@@ -77,9 +77,10 @@ export class CollectorManager {
 
       let timeoutId: NodeJS.Timeout | null = null
 
-      const handler = (data: { type: 'INTERACTION_CREATE', interaction: any }) => {
+      const handler = (data: import('../events/index.js').ChameleonEvent) => {
 
-        const raw = data.interaction
+        if (data.type !== 'INTERACTION_CREATE') return
+        const raw = data.interaction as Record<string, unknown>
         
         if (raw.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
         if (raw.message?.id !== messageId) return
@@ -91,14 +92,9 @@ export class CollectorManager {
           this.client,
           raw,
           user,
-          raw.guild_id ? resolveGuild(raw.guild_id, this.client.cache) : undefined,
-          raw.channel_id ? resolveChannel(raw.channel_id, this.client.cache) : undefined
+          raw.guild_id ? resolveGuild(raw.guild_id, this.client) : undefined,
+          raw.channel_id ? resolveChannel(raw.channel_id, this.client) : undefined
         )
-
-        // hydrate values if select menu
-        if (raw.data.component_type === COMPONENT_TYPES.STRING_SELECT || raw.data.component_type === COMPONENT_TYPES.USER_SELECT || raw.data.component_type === COMPONENT_TYPES.ROLE_SELECT || raw.data.component_type === COMPONENT_TYPES.MENTIONABLE_SELECT || raw.data.component_type === COMPONENT_TYPES.CHANNEL_SELECT) {
-          (ctx as any)._values = raw.data.values || []
-        }
 
         if (filter && !filter(ctx)) return
 
@@ -110,10 +106,10 @@ export class CollectorManager {
 
         if (timeoutId) clearTimeout(timeoutId)
 
-        this.client.off('INTERACTION_CREATE', handler as any)
+        this.client.off('INTERACTION_CREATE', handler)
       }
 
-      this.client.on('INTERACTION_CREATE', handler as any)
+      this.client.on('INTERACTION_CREATE', handler)
 
       if (time > 0) {
         timeoutId = setTimeout(() => {

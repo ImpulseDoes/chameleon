@@ -1,5 +1,6 @@
 import type { ChameleonREST } from '../rest/index.js'
 import type { TongueStore } from '../client/store.js'
+import type { Tongue } from '../utils/tongue.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 
 export abstract class BaseManager<T extends { id: string }> {
@@ -17,10 +18,10 @@ export abstract class BaseManager<T extends { id: string }> {
 
     if (!force) {
 
-      const tongue = this.store[this.storeKey] as any
+      const tongue = this.store[this.storeKey] as unknown as Tongue<string, T>
       const cached = tongue.get(id)
 
-      if (cached) return { ok: true, data: cached as T }
+      if (cached) return { ok: true, data: cached }
     }
 
     const result = await this.rest.get<unknown>(this.endpoint(id))
@@ -29,7 +30,7 @@ export abstract class BaseManager<T extends { id: string }> {
 
     const entity = this.build(result.data)
 
-    const tongue = this.store[this.storeKey] as any
+    const tongue = this.store[this.storeKey] as unknown as Tongue<string, T>
     tongue.set(id, entity)
 
     return { ok: true, data: entity }

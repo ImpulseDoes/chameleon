@@ -67,7 +67,7 @@ describe('ComponentManager', () => {
     const client = new Client({ token: 'test', intents: [] })
     const manager = new ComponentManager(client)
     
-    let executedCtx: ComponentContext | undefined
+    let executedCtx: ComponentContext<import('../src/types/user/index.ts').User[]> | undefined
     
     const sel = defineUserSelect({
       customId: 'u_sel',
@@ -75,7 +75,7 @@ describe('ComponentManager', () => {
         executedCtx = ctx
       }
     })
-    manager.register(sel)
+    manager.register(sel as unknown)
 
     const rawInteraction = {
       data: {
@@ -99,8 +99,8 @@ describe('ComponentManager', () => {
     expect(executedCtx).toBeDefined()
     // Test values resolution mapping
     expect(executedCtx?.values).toHaveLength(1)
-    expect(executedCtx?.values[0].id).toBe('target1')
-    expect(executedCtx?.values[0].username).toBe('jane')
+    expect(executedCtx?.values[0]?.id).toBe('target1')
+    expect(executedCtx?.values[0]?.username).toBe('jane')
     
     // Test that the user was hydrated into cache
     expect(client.cache.users.has('target1')).toBe(true)
@@ -111,7 +111,7 @@ describe('ComponentManager', () => {
     const client = new Client({ token: 'test', intents: [] })
     const manager = new ComponentManager(client)
     
-    let executedCtx: ComponentContext | undefined
+    let executedCtx: ComponentContext<Partial<import('../src/types/channel/index.ts').Channel>[]> | undefined
     
     const sel = defineChannelSelect({
       customId: 'c_sel',
@@ -119,7 +119,7 @@ describe('ComponentManager', () => {
         executedCtx = ctx
       }
     })
-    manager.register(sel)
+    manager.register(sel as unknown)
 
     const rawInteraction = {
       data: {
@@ -138,9 +138,9 @@ describe('ComponentManager', () => {
 
     expect(executedCtx).toBeDefined()
     expect(executedCtx?.values).toHaveLength(2)
-    expect(executedCtx?.values[0].id).toBe('c1')
-    expect(executedCtx?.values[0].name).toBe('general')
-    expect(executedCtx?.values[1].id).toBe('unknown_channel') // Fallback to id-only object
+    expect(executedCtx?.values[0]?.id).toBe('c1')
+    expect(executedCtx?.values[0]?.name).toBe('general')
+    expect(executedCtx?.values[1]?.id).toBe('unknown_channel') // Fallback to id-only object
   })
 
   it('should catch handler errors', async () => {

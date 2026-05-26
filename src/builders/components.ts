@@ -4,6 +4,7 @@ import {
   ComponentType,
   ButtonStyle,
 } from '../types/components/index.js'
+import { toSnakeCase } from '../utils/object.js'
 
 function serializeEmoji(emoji?: Partial<Emoji>) {
 
@@ -59,7 +60,7 @@ export class ButtonBuilder {
     } as MessageComponent
   }
 
-  toJSON(): any {
+  toJSON(): Record<string, unknown> {
     return {
       type: ComponentType.BUTTON,
       custom_id: this.data.customId,
@@ -136,7 +137,7 @@ export class SelectMenuBuilder {
     } as MessageComponent
   }
 
-  toJSON(): any {
+  toJSON(): Record<string, unknown> {
     return {
       type: this.data.type ?? ComponentType.STRING_SELECT,
       custom_id: this.data.customId,
@@ -217,7 +218,7 @@ export class TextInputBuilder {
     } as MessageComponent
   }
 
-  toJSON(): any {
+  toJSON(): Record<string, unknown> {
     return {
       type: ComponentType.TEXT_INPUT,
       custom_id: this.data.customId,
@@ -243,10 +244,10 @@ export class ActionRowBuilder {
     component:
       | MessageComponent
       | { build(): MessageComponent }
-      | { toJSON(): any },
+      | { toJSON(): Record<string, unknown> },
   ): this {
 
-    this.data.components!.push(component as any)
+    this.data.components!.push(component as MessageComponent)
 
     return this
   }
@@ -255,7 +256,7 @@ export class ActionRowBuilder {
     ...components: (
       | MessageComponent
       | { build(): MessageComponent }
-      | { toJSON(): any }
+      | { toJSON(): unknown }
     )[]
   ): this {
 
@@ -269,11 +270,19 @@ export class ActionRowBuilder {
   build(): MessageComponent {
     return {
       ...this.data,
-      components: [...this.data.components!],
+      components: this.data.components!.map(component => {
+        if (
+          component &&
+          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
+        ) {
+          return (component as unknown as { build(): MessageComponent }).build()
+        }
+        return component
+      }),
     }
   }
 
-  toJSON(): any {
+  toJSON(): Record<string, unknown> {
     return {
       type: ComponentType.ACTION_ROW,
 
@@ -281,9 +290,9 @@ export class ActionRowBuilder {
 
         if (
           component &&
-          typeof (component as any).toJSON === 'function'
+          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
         ) {
-          return (component as any).toJSON()
+          return (component as unknown as { toJSON(): Record<string, unknown> }).toJSON()
         }
 
         return component
@@ -296,7 +305,7 @@ export class ModalBuilder {
 
   private _title = ''
   private _customId = ''
-  private _components: any[] = []
+  private _components: (MessageComponent | { build(): MessageComponent } | { toJSON(): Record<string, unknown> })[] = []
 
   setTitle(title: string): this {
     this._title = title
@@ -312,7 +321,7 @@ export class ModalBuilder {
     component:
       | MessageComponent
       | { build(): MessageComponent }
-      | { toJSON(): any },
+      | { toJSON(): Record<string, unknown> },
   ): this {
 
     this._components.push(component)
@@ -320,13 +329,7 @@ export class ModalBuilder {
     return this
   }
 
-  addComponents(
-    ...components: (
-      | MessageComponent
-      | { build(): MessageComponent }
-      | { toJSON(): any }
-    )[]
-  ): this {
+  addComponents(...components: (MessageComponent | { build(): MessageComponent } | { toJSON(): unknown })[]) {
 
     for (const component of components) {
       this.addComponent(component)
@@ -339,7 +342,15 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-      components: [...this._components],
+      components: this._components.map(component => {
+        if (
+          component &&
+          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
+        ) {
+          return (component as unknown as { build(): MessageComponent }).build()
+        }
+        return component
+      }),
     }
   }
 
@@ -352,13 +363,27 @@ export class ModalBuilder {
 
         if (
           component &&
-          typeof component.toJSON === 'function'
+          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
         ) {
-          return component.toJSON()
+          return (component as { toJSON(): Record<string, unknown> }).toJSON()
         }
 
         return component
       }),
     }
   }
+}
+
+export function serializeComponent(component: MessageComponent | { build?(): MessageComponent } | { toJSON?(): Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
+  
+  if (!component) return {}
+  if (typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function') {
+    return (component as { toJSON(): Record<string, unknown> }).toJSON()
+  }
+  
+  if (typeof (component as { build?(): MessageComponent }).build === 'function') {
+    return toSnakeCase((component as { build(): MessageComponent }).build()) as Record<string, unknown>
+  }
+  
+  return toSnakeCase(component) as Record<string, unknown>
 }

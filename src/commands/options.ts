@@ -22,10 +22,10 @@ export type ResolveOptionType<T extends OptionType> =
   T extends 'role' ? Role :
   never
 
-export type ResolveOption<O extends OptionDef<any, boolean>> =
+export type ResolveOption<O extends OptionDef<OptionType, boolean>> =
   O['required'] extends true ? ResolveOptionType<O['type']> : ResolveOptionType<O['type']> | undefined
 
-export type ResolveOptions<O extends Record<string, OptionDef<any, boolean>>> = {
+export type ResolveOptions<O extends Record<string, OptionDef<OptionType, boolean>>> = {
   [K in keyof O]: ResolveOption<O[K]>
 }
 

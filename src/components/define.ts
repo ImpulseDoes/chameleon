@@ -127,17 +127,17 @@ export const field = {
   })
 }
 
-export type ResolveModalFields<F extends ReadonlyArray<ModalFieldDef<any>>> = {
+export type ResolveModalFields<F extends ReadonlyArray<ModalFieldDef<unknown>>> = {
   [K in F[number] as K['id']]: K['required'] extends false ? string | undefined : string
 }
 
-export interface ModalDef<F extends ReadonlyArray<ModalFieldDef<any>>> {
+export interface ModalDef<F extends ReadonlyArray<ModalFieldDef<unknown>>> {
   customId: string
   title: string
   fields: F
   execute: (ctx: ComponentContext<never, ResolveModalFields<F>>) => void | Promise<void>
 }
 
-export function defineModal<F extends ReadonlyArray<ModalFieldDef<any>>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
+export function defineModal<F extends ReadonlyArray<ModalFieldDef<unknown>>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
   return { ...def, type: 'modal' }
 }
