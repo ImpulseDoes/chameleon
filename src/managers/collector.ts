@@ -80,20 +80,21 @@ export class CollectorManager {
       const handler = (data: import('../events/index.js').ChameleonEvent) => {
 
         if (data.type !== 'INTERACTION_CREATE') return
-        const raw = data.interaction as Record<string, unknown>
+        const interaction = data.interaction
+        const raw = interaction as unknown as Record<string, unknown>
         
-        if (raw.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
-        if (raw.message?.id !== messageId) return
+        if (interaction.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
+        if (interaction.message?.id !== messageId) return
 
-        const userRaw = raw.member?.user || raw.user
-        const user = buildUser(userRaw)
+        const userRaw = interaction.member?.user || interaction.user
+        const user = buildUser(userRaw as unknown as Record<string, unknown>)
 
         const ctx = new ComponentContext(
           this.client,
           raw,
           user,
-          raw.guild_id ? resolveGuild(raw.guild_id, this.client) : undefined,
-          raw.channel_id ? resolveChannel(raw.channel_id, this.client) : undefined
+          interaction.guildId ? resolveGuild(interaction.guildId, this.client) : undefined,
+          interaction.channelId ? resolveChannel(interaction.channelId, this.client) : undefined
         )
 
         if (filter && !filter(ctx)) return

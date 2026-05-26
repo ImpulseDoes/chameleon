@@ -256,7 +256,7 @@ export class ActionRowBuilder {
     ...components: (
       | MessageComponent
       | { build(): MessageComponent }
-      | { toJSON(): unknown }
+      | { toJSON(): Record<string, unknown> }
     )[]
   ): this {
 
@@ -329,7 +329,7 @@ export class ModalBuilder {
     return this
   }
 
-  addComponents(...components: (MessageComponent | { build(): MessageComponent } | { toJSON(): unknown })[]) {
+  addComponents(...components: (MessageComponent | { build(): MessageComponent } | { toJSON(): Record<string, unknown> })[]) {
 
     for (const component of components) {
       this.addComponent(component)

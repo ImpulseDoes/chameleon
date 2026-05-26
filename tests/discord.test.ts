@@ -20,14 +20,14 @@ describe('Discord API Compliance', () => {
         ]
       }
 
-      const serialized = toSnakeCase(payload) as unknown
+      const serialized = toSnakeCase(payload) as Record<string, unknown>
 
       expect(serialized.custom_id).toBe('my_button')
       expect(serialized.max_values).toBe(5)
       expect(serialized.channel_id).toBe('123')
       
-      expect(serialized.embeds[0].title_text).toBe('Hello')
-      expect(serialized.embeds[0].author_name).toBe('impulsedoes')
+      expect((serialized.embeds as Record<string, unknown>[])[0]!.title_text).toBe('Hello')
+      expect((serialized.embeds as Record<string, unknown>[])[0]!.author_name).toBe('impulsedoes')
 
       expect(serialized.customId).toBeUndefined()
       expect(serialized.maxValues).toBeUndefined()
@@ -53,10 +53,10 @@ describe('Discord API Compliance', () => {
         components: [component]
       }
 
-      const serialized = toSnakeCase(payload) as unknown
+      const serialized = toSnakeCase(payload) as Record<string, unknown>
 
-      expect(serialized.components[0].type).toBe(2)
-      expect(serialized.components[0].custom_id).toBe('btn_overridden')
+      expect((serialized.components as Record<string, unknown>[])[0]!.type).toBe(2)
+      expect((serialized.components as Record<string, unknown>[])[0]!.custom_id).toBe('btn_overridden')
       // Shouldn't see custom_id: 'btn' from the raw component properties
     })
   })
@@ -77,7 +77,7 @@ describe('Discord API Compliance', () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1)
       
-      const [url, init] = fetchSpy.mock.calls[0]
+      const [url, init] = fetchSpy.mock.calls[0]!
       
       expect(url).toBe('https://discord.com/api/v10/users/@me')
       
@@ -100,7 +100,7 @@ describe('Discord API Compliance', () => {
       
       await rest.post('channels/123/messages', { content: 'hello' })
 
-      const [url] = fetchSpy.mock.calls[0]
+      const [url] = fetchSpy.mock.calls[0]!
       expect(url).toBe('https://discord.com/api/v9/channels/123/messages')
 
       fetchSpy.mockRestore()
@@ -118,7 +118,7 @@ describe('Discord API Compliance', () => {
       
       await rest.post('/test', { foo: 'bar' })
 
-      const [, init] = fetchSpy.mock.calls[0]
+      const [, init] = fetchSpy.mock.calls[0]!
       
       const headers = init?.headers as Record<string, string>
       expect(headers['Content-Type']).toBe('application/json')
@@ -140,7 +140,7 @@ describe('Discord API Compliance', () => {
       
       await rest.delete('/channels/123', { 'X-Audit-Log-Reason': encodeURIComponent('Because I can') })
 
-      const [, init] = fetchSpy.mock.calls[0]
+      const [, init] = fetchSpy.mock.calls[0]!
       
       const headers = init?.headers as Record<string, string>
       expect(headers['X-Audit-Log-Reason']).toBe('Because%20I%20can')

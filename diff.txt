@@ -1,0 +1,3086 @@
+diff --git a/src/builders/components.ts b/src/builders/components.ts
+index 0e46b7e..a34a97b 100644
+--- a/src/builders/components.ts
++++ b/src/builders/components.ts
+@@ -4,6 +4,7 @@ import {
+   ComponentType,
+   ButtonStyle,
+ } from '../types/components/index.js'
++import { toSnakeCase } from '../utils/object.js'
+ 
+ function serializeEmoji(emoji?: Partial<Emoji>) {
+ 
+@@ -59,7 +60,7 @@ export class ButtonBuilder {
+     } as MessageComponent
+   }
+ 
+-  toJSON(): any {
++  toJSON(): Record<string, unknown> {
+     return {
+       type: ComponentType.BUTTON,
+       custom_id: this.data.customId,
+@@ -136,7 +137,7 @@ export class SelectMenuBuilder {
+     } as MessageComponent
+   }
+ 
+-  toJSON(): any {
++  toJSON(): Record<string, unknown> {
+     return {
+       type: this.data.type ?? ComponentType.STRING_SELECT,
+       custom_id: this.data.customId,
+@@ -217,7 +218,7 @@ export class TextInputBuilder {
+     } as MessageComponent
+   }
+ 
+-  toJSON(): any {
++  toJSON(): Record<string, unknown> {
+     return {
+       type: ComponentType.TEXT_INPUT,
+       custom_id: this.data.customId,
+@@ -243,10 +244,10 @@ export class ActionRowBuilder {
+     component:
+       | MessageComponent
+       | { build(): MessageComponent }
+-      | { toJSON(): any },
++      | { toJSON(): Record<string, unknown> },
+   ): this {
+ 
+-    this.data.components!.push(component as any)
++    this.data.components!.push(component as MessageComponent)
+ 
+     return this
+   }
+@@ -255,7 +256,7 @@ export class ActionRowBuilder {
+     ...components: (
+       | MessageComponent
+       | { build(): MessageComponent }
+-      | { toJSON(): any }
++      | { toJSON(): unknown }
+     )[]
+   ): this {
+ 
+@@ -269,11 +270,19 @@ export class ActionRowBuilder {
+   build(): MessageComponent {
+     return {
+       ...this.data,
+-      components: [...this.data.components!],
++      components: this.data.components!.map(component => {
++        if (
++          component &&
++          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
++        ) {
++          return (component as unknown as { build(): MessageComponent }).build()
++        }
++        return component
++      }),
+     }
+   }
+ 
+-  toJSON(): any {
++  toJSON(): Record<string, unknown> {
+     return {
+       type: ComponentType.ACTION_ROW,
+ 
+@@ -281,9 +290,9 @@ export class ActionRowBuilder {
+ 
+         if (
+           component &&
+-          typeof (component as any).toJSON === 'function'
++          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
+         ) {
+-          return (component as any).toJSON()
++          return (component as unknown as { toJSON(): Record<string, unknown> }).toJSON()
+         }
+ 
+         return component
+@@ -296,7 +305,7 @@ export class ModalBuilder {
+ 
+   private _title = ''
+   private _customId = ''
+-  private _components: any[] = []
++  private _components: (MessageComponent | { build(): MessageComponent } | { toJSON(): Record<string, unknown> })[] = []
+ 
+   setTitle(title: string): this {
+     this._title = title
+@@ -312,7 +321,7 @@ export class ModalBuilder {
+     component:
+       | MessageComponent
+       | { build(): MessageComponent }
+-      | { toJSON(): any },
++      | { toJSON(): Record<string, unknown> },
+   ): this {
+ 
+     this._components.push(component)
+@@ -320,13 +329,7 @@ export class ModalBuilder {
+     return this
+   }
+ 
+-  addComponents(
+-    ...components: (
+-      | MessageComponent
+-      | { build(): MessageComponent }
+-      | { toJSON(): any }
+-    )[]
+-  ): this {
++  addComponents(...components: (MessageComponent | { build(): MessageComponent } | { toJSON(): unknown })[]) {
+ 
+     for (const component of components) {
+       this.addComponent(component)
+@@ -339,7 +342,15 @@ export class ModalBuilder {
+     return {
+       title: this._title,
+       custom_id: this._customId,
+-      components: [...this._components],
++      components: this._components.map(component => {
++        if (
++          component &&
++          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
++        ) {
++          return (component as unknown as { build(): MessageComponent }).build()
++        }
++        return component
++      }),
+     }
+   }
+ 
+@@ -352,13 +363,27 @@ export class ModalBuilder {
+ 
+         if (
+           component &&
+-          typeof component.toJSON === 'function'
++          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
+         ) {
+-          return component.toJSON()
++          return (component as { toJSON(): Record<string, unknown> }).toJSON()
+         }
+ 
+         return component
+       }),
+     }
+   }
++}
++
++export function serializeComponent(component: MessageComponent | { build?(): MessageComponent } | { toJSON?(): Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
++  
++  if (!component) return {}
++  if (typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function') {
++    return (component as { toJSON(): Record<string, unknown> }).toJSON()
++  }
++  
++  if (typeof (component as { build?(): MessageComponent }).build === 'function') {
++    return toSnakeCase((component as { build(): MessageComponent }).build()) as Record<string, unknown>
++  }
++  
++  return toSnakeCase(component) as Record<string, unknown>
+ }
+\ No newline at end of file
+diff --git a/src/builders/embed.ts b/src/builders/embed.ts
+index 14036f8..972ba08 100644
+--- a/src/builders/embed.ts
++++ b/src/builders/embed.ts
+@@ -1,4 +1,4 @@
+-import type { Embed, EmbedField, EmbedFooter, EmbedAuthor, EmbedImage } from '../types/message/index.js'
++import type { Embed, EmbedField } from '../types/message/index.js'
+ 
+ export const Colors = {
+   Blue: 0x1e90ff,
+@@ -144,12 +144,18 @@ export class EmbedBuilder {
+ 	if (e.image?.url) {
+ 		payload.image = {
+ 			url: e.image.url,
++			...(e.image.proxyUrl ? { proxy_url: e.image.proxyUrl } : {}),
++			...(typeof e.image.width === 'number' ? { width: e.image.width } : {}),
++			...(typeof e.image.height === 'number' ? { height: e.image.height } : {})
+ 		}
+ 	}
+ 
+ 	if (e.thumbnail?.url) {
+ 		payload.thumbnail = {
+ 			url: e.thumbnail.url,
++			...(e.thumbnail.proxyUrl ? { proxy_url: e.thumbnail.proxyUrl } : {}),
++			...(typeof e.thumbnail.width === 'number' ? { width: e.thumbnail.width } : {}),
++			...(typeof e.thumbnail.height === 'number' ? { height: e.thumbnail.height } : {})
+ 		}
+ 	}
+ 
+diff --git a/src/builders/entities.ts b/src/builders/entities.ts
+new file mode 100644
+index 0000000..3eeeddf
+--- /dev/null
++++ b/src/builders/entities.ts
+@@ -0,0 +1,274 @@
++import type { StageInstance } from '../types/stage/index.js'
++import type { GuildScheduledEvent } from '../types/scheduled/index.js'
++import type { AutoModerationRule, AutoModerationAction, AutoModerationActionMetadata, AutoModerationTriggerMetadata } from '../types/automod/index.js'
++import type { Integration } from '../types/integration/index.js'
++import type { Emoji, Sticker, StickerItem } from '../types/expressions/index.js'
++import type { Voice } from '../types/voice/index.js'
++import type { Entitlement } from '../types/entitlement/index.js'
++import type { Interaction, InteractionData } from '../types/interaction/index.js'
++import type { User } from '../types/user/index.js'
++import type { Member } from '../types/guild/index.js'
++import type { TongueStore } from '../client/store.js'
++import { buildUser, buildMember } from './index.js'
++
++export function buildStageInstance(raw: Record<string, unknown>): StageInstance {
++
++  return {
++    id: raw.id as string,
++    guildId: (raw.guild_id as string) ?? '',
++    channelId: (raw.channel_id as string) ?? '',
++    topic: (raw.topic as string) ?? '',
++    privacyLevel: (raw.privacy_level as number) ?? 2,
++    discoverableDisabled: (raw.discoverable_disabled as boolean) ?? false,
++    guildScheduledEventId: (raw.guild_scheduled_event_id as string | null) ?? null,
++  }
++}
++
++export function buildScheduledEvent(raw: Record<string, unknown>): GuildScheduledEvent {
++
++  let creator: User | undefined
++
++  if (raw.creator) {
++    creator = buildUser(raw.creator as Record<string, unknown>)
++  }
++
++  return {
++    id: raw.id as string,
++    guildId: (raw.guild_id as string) ?? '',
++    channelId: (raw.channel_id as string | null) ?? null,
++    creatorId: (raw.creator_id as string | null) ?? null,
++    name: (raw.name as string) ?? '',
++    description: (raw.description as string | null) ?? null,
++    scheduledStartTime: raw.scheduled_start_time ? Date.parse(raw.scheduled_start_time as string) : 0,
++    scheduledEndTime: raw.scheduled_end_time ? Date.parse(raw.scheduled_end_time as string) : null,
++    privacyLevel: (raw.privacy_level as number) ?? 2,
++    status: (raw.status as number) ?? 1,
++    entityType: (raw.entity_type as number) ?? 1,
++    entityId: (raw.entity_id as string | null) ?? null,
++    entityMetadata: raw.entity_metadata
++      ? { ...((raw.entity_metadata as Record<string, unknown>).location !== undefined ? { location: (raw.entity_metadata as Record<string, unknown>).location as string } : {}) }
++      : null,
++    ...(creator ? { creator } : {}),
++    ...(raw.user_count !== undefined ? { userCount: raw.user_count as number } : {}),
++    ...(raw.image !== undefined ? { image: raw.image as string | null } : {}),
++  }
++}
++
++function buildAutoModActionMetadata(raw: Record<string, unknown>): AutoModerationActionMetadata {
++
++  return {
++    ...(raw.channel_id !== undefined ? { channelId: raw.channel_id as string } : {}),
++    ...(raw.duration_seconds !== undefined ? { durationSeconds: raw.duration_seconds as number } : {}),
++    ...(raw.custom_message !== undefined ? { customMessage: raw.custom_message as string } : {}),
++  }
++}
++
++function buildAutoModAction(raw: Record<string, unknown>): AutoModerationAction {
++
++  return {
++    type: raw.type as number,
++    ...(raw.metadata ? { metadata: buildAutoModActionMetadata(raw.metadata as Record<string, unknown>) } : {}),
++  }
++}
++
++function buildAutoModTriggerMetadata(raw: Record<string, unknown>): AutoModerationTriggerMetadata {
++
++  return {
++    ...(raw.keyword_filter !== undefined ? { keywordFilter: raw.keyword_filter as string[] } : {}),
++    ...(raw.regex_patterns !== undefined ? { regexPatterns: raw.regex_patterns as string[] } : {}),
++    ...(raw.presets !== undefined ? { presets: raw.presets as number[] } : {}),
++    ...(raw.allow_list !== undefined ? { allowList: raw.allow_list as string[] } : {}),
++    ...(raw.mention_total_limit !== undefined ? { mentionTotalLimit: raw.mention_total_limit as number } : {}),
++    ...(raw.mention_raid_protection_enabled !== undefined ? { mentionRaidProtectionEnabled: raw.mention_raid_protection_enabled as boolean } : {}),
++  }
++}
++
++export function buildAutoModRule(raw: Record<string, unknown>): AutoModerationRule {
++
++  return {
++    id: raw.id as string,
++    guildId: (raw.guild_id as string) ?? '',
++    name: (raw.name as string) ?? '',
++    creatorId: (raw.creator_id as string) ?? '',
++    eventType: (raw.event_type as number) ?? 1,
++    triggerType: (raw.trigger_type as number) ?? 1,
++    triggerMetadata: raw.trigger_metadata
++      ? buildAutoModTriggerMetadata(raw.trigger_metadata as Record<string, unknown>)
++      : {},
++    actions: Array.isArray(raw.actions)
++      ? (raw.actions as Record<string, unknown>[]).map(a => buildAutoModAction(a))
++      : [],
++    enabled: (raw.enabled as boolean) ?? false,
++    exemptRoles: (raw.exempt_roles as string[]) ?? [],
++    exemptChannels: (raw.exempt_channels as string[]) ?? [],
++  }
++}
++
++export function buildIntegration(raw: Record<string, unknown>): Integration {
++
++  let user: User | undefined
++
++  if (raw.user) {
++    user = buildUser(raw.user as Record<string, unknown>)
++  }
++
++  return {
++    id: raw.id as string,
++    name: (raw.name as string) ?? '',
++    type: (raw.type as string) ?? '',
++    enabled: (raw.enabled as boolean) ?? false,
++    ...(raw.syncing !== undefined ? { syncing: raw.syncing as boolean } : {}),
++    ...(raw.role_id !== undefined ? { roleId: raw.role_id as string } : {}),
++    ...(raw.enable_emoticons !== undefined ? { enableEmoticons: raw.enable_emoticons as boolean } : {}),
++    ...(raw.expire_behavior !== undefined ? { expireBehavior: raw.expire_behavior as number } : {}),
++    ...(raw.expire_grace_period !== undefined ? { expireGracePeriod: raw.expire_grace_period as number } : {}),
++    ...(user ? { user } : {}),
++    account: raw.account
++      ? { id: (raw.account as Record<string, unknown>).id as string, name: (raw.account as Record<string, unknown>).name as string }
++      : { id: '', name: '' },
++    ...(raw.synced_at ? { syncedAt: Date.parse(raw.synced_at as string) } : {}),
++    ...(raw.subscriber_count !== undefined ? { subscriberCount: raw.subscriber_count as number } : {}),
++    ...(raw.revoked !== undefined ? { revoked: raw.revoked as boolean } : {}),
++    ...(raw.application !== undefined ? { application: raw.application as import('../types/application/index.js').Application } : {}),
++    ...(raw.scopes !== undefined ? { scopes: raw.scopes as string[] } : {}),
++  }
++}
++
++export function buildEmoji(raw: Record<string, unknown>): Emoji {
++
++  let user: User | undefined
++
++  if (raw.user) {
++    user = buildUser(raw.user as Record<string, unknown>)
++  }
++
++  return {
++    id: (raw.id as string | null) ?? null,
++    name: (raw.name as string | null) ?? null,
++    ...(raw.roles !== undefined ? { roles: raw.roles as string[] } : {}),
++    ...(user ? { user } : {}),
++    ...(raw.require_colons !== undefined ? { requireColons: raw.require_colons as boolean } : {}),
++    ...(raw.managed !== undefined ? { managed: raw.managed as boolean } : {}),
++    ...(raw.animated !== undefined ? { animated: raw.animated as boolean } : {}),
++    ...(raw.available !== undefined ? { available: raw.available as boolean } : {}),
++  }
++}
++
++export function buildSticker(raw: Record<string, unknown>): Sticker {
++
++  let user: User | undefined
++
++  if (raw.user) {
++    user = buildUser(raw.user as Record<string, unknown>)
++  }
++
++  return {
++    id: raw.id as string,
++    ...(raw.pack_id !== undefined ? { packId: raw.pack_id as string } : {}),
++    name: (raw.name as string) ?? '',
++    description: (raw.description as string | null) ?? null,
++    tags: (raw.tags as string) ?? '',
++    type: (raw.type as number) ?? 1,
++    formatType: (raw.format_type as number) ?? 1,
++    ...(raw.available !== undefined ? { available: raw.available as boolean } : {}),
++    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
++    ...(user ? { user } : {}),
++    ...(raw.sort_value !== undefined ? { sortValue: raw.sort_value as number } : {}),
++  }
++}
++
++export function buildStickerItem(raw: Record<string, unknown>): StickerItem {
++
++  return {
++    id: raw.id as string,
++    name: (raw.name as string) ?? '',
++    formatType: (raw.format_type as number) ?? 1,
++  }
++}
++
++export function buildVoiceState(raw: Record<string, unknown>, cache?: TongueStore): Voice {
++
++  let member: Member | undefined
++
++  if (raw.member && cache && raw.guild_id) {
++    member = buildMember(raw.member as Record<string, unknown>, raw.guild_id as string, cache)
++  }
++
++  return {
++    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
++    channelId: (raw.channel_id as string) ?? '',
++    userId: (raw.user_id as string) ?? '',
++    ...(member ? { member } : {}),
++    sessionId: (raw.session_id as string) ?? '',
++    deaf: (raw.deaf as boolean) ?? false,
++    mute: (raw.mute as boolean) ?? false,
++    selfDeaf: (raw.self_deaf as boolean) ?? false,
++    selfMute: (raw.self_mute as boolean) ?? false,
++    selfStream: (raw.self_stream as boolean) ?? false,
++    selfVideo: (raw.self_video as boolean) ?? false,
++    suppress: (raw.suppress as boolean) ?? false,
++    requestToSpeakTimestamp: raw.request_to_speak_timestamp
++      ? Date.parse(raw.request_to_speak_timestamp as string)
++      : null,
++  }
++}
++
++export function buildEntitlement(raw: Record<string, unknown>): Entitlement {
++  
++  return {
++    id: raw.id as string,
++    skuId: (raw.sku_id as string) ?? '',
++    applicationId: (raw.application_id as string) ?? '',
++    ...(raw.user_id !== undefined ? { userId: raw.user_id as string } : {}),
++    type: (raw.type as number) ?? 1,
++    deleted: (raw.deleted as boolean) ?? false,
++    ...(raw.starts_at !== undefined ? { startsAt: raw.starts_at ? Date.parse(raw.starts_at as string) : null } : {}),
++    ...(raw.ends_at !== undefined ? { endsAt: raw.ends_at ? Date.parse(raw.ends_at as string) : null } : {}),
++    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
++    ...(raw.consumed !== undefined ? { consumed: raw.consumed as boolean } : {}),
++  }
++}
++
++export function buildInteraction(raw: Record<string, unknown>, cache?: TongueStore): Interaction {
++
++  let user: User | undefined
++  let member: Member | undefined
++
++  if (raw.member && raw.guild_id) {
++
++    const memberRaw = raw.member as Record<string, unknown>
++
++    if (cache) {
++      member = buildMember(memberRaw, raw.guild_id as string, cache)
++    }
++    if (memberRaw.user) {
++      user = buildUser(memberRaw.user as Record<string, unknown>)
++    }
++  }
++
++  if (!user && raw.user) {
++    user = buildUser(raw.user as Record<string, unknown>)
++  }
++
++  return {
++    id: raw.id as string,
++    applicationId: (raw.application_id as string) ?? '',
++    type: (raw.type as number) ?? 1,
++    ...(raw.data !== undefined ? { data: raw.data as InteractionData } : {}),
++    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
++    ...(raw.channel_id !== undefined ? { channelId: raw.channel_id as string } : {}),
++    ...(member ? { member } : {}),
++    ...(user ? { user } : {}),
++    token: (raw.token as string) ?? '',
++    version: (raw.version as number) ?? 1,
++    ...(raw.message !== undefined ? { message: raw.message as import('../types/message/index.js').Message } : {}),
++    ...(raw.app_permissions !== undefined ? { appPermissions: raw.app_permissions as string } : {}),
++    ...(raw.locale !== undefined ? { locale: raw.locale as string } : {}),
++    ...(raw.guild_locale !== undefined ? { guildLocale: raw.guild_locale as string } : {}),
++    entitlements: Array.isArray(raw.entitlements)
++      ? (raw.entitlements as Record<string, unknown>[]).map(e => buildEntitlement(e))
++      : [],
++    authorizingIntegrationOwners: (raw.authorizing_integration_owners as Record<string, string>) ?? {},
++    ...(raw.context !== undefined ? { context: raw.context as number } : {}),
++  }
++}
+\ No newline at end of file
+diff --git a/src/builders/index.ts b/src/builders/index.ts
+index bfa738c..9c94a96 100644
+--- a/src/builders/index.ts
++++ b/src/builders/index.ts
+@@ -4,9 +4,12 @@ import type { Guild, Member, Role } from '../types/guild/index.js'
+ import type { Message } from '../types/message/index.js'
+ import type { Emoji } from '../types/expressions/index.js'
+ import type { TongueStore } from '../client/store.js'
++import type { Client } from '../client/client.js'
++import type { ChameleonAPIResult } from '../rest/types.js'
+ 
+ export * from './embed.js'
+ export * from './components.js'
++export * from './entities.js'
+ 
+ export function buildUser(raw: Record<string, unknown>): User {
+   return {
+@@ -28,6 +31,7 @@ export function buildUser(raw: Record<string, unknown>): User {
+ }
+ 
+ export function buildChannel(raw: Record<string, unknown>, guildId?: string): Channel {
++
+   return {
+     id: raw.id as string,
+     type: raw.type as number,
+@@ -46,6 +50,7 @@ export function buildChannel(raw: Record<string, unknown>, guildId?: string): Ch
+ }
+ 
+ export function buildGuild(raw: Record<string, unknown>): Guild {
++
+   return {
+     id: raw.id as string,
+     name: raw.name as string,
+@@ -81,6 +86,7 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
+ }
+ 
+ export function buildRole(raw: Record<string, unknown>): Role {
++  
+   return {
+     id: raw.id as string,
+     name: raw.name as string,
+@@ -157,18 +163,22 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
+   return msg
+ }
+ 
+-export function resolveChannel(channelId: string, cache: TongueStore): Channel | { id: string } {
+-  return cache.channels.get(channelId) ?? { id: channelId }
++export function resolveChannel(channelId: string, client: Client): Channel | { id: string, fetch: () => Promise<ChameleonAPIResult<Channel>> } {
++  return client.cache.channels.get(channelId) ?? { id: channelId, fetch: () => client.channels.fetch(channelId) }
+ }
+ 
+-export function resolveGuild(guildId: string, cache: TongueStore): Guild | { id: string } {
+-  return cache.guilds.get(guildId) ?? { id: guildId }
++export function resolveGuild(guildId: string, client: Client): Guild | { id: string, fetch: () => Promise<ChameleonAPIResult<Guild>> } {
++  return client.cache.guilds.get(guildId) ?? { id: guildId, fetch: () => client.guilds.fetch(guildId) }
+ }
+ 
+-export function resolveUser(userId: string, cache: TongueStore): User | { id: string } {
+-  return cache.users.get(userId) ?? { id: userId }
++export function resolveUser(userId: string, client: Client): User | { id: string, fetch: () => Promise<ChameleonAPIResult<User>> } {
++  return client.cache.users.get(userId) ?? { id: userId, fetch: () => client.users.fetch(userId) }
+ }
+ 
+-export function resolveRole(roleId: string, cache: TongueStore): Role | { id: string } {
+-  return cache.roles.get(roleId) ?? { id: roleId }
++export function resolveRole(roleId: string, client: Client, guildId?: string): Role | { id: string, fetch?: () => Promise<ChameleonAPIResult<Role>> } {
++  
++  const stub: { id: string, fetch?: () => Promise<ChameleonAPIResult<Role>> } = { id: roleId }
++  if (guildId) stub.fetch = () => client.guilds.roles(guildId).fetch(roleId)
++
++  return client.cache.roles.get(roleId) ?? stub
+ }
+\ No newline at end of file
+diff --git a/src/client/client.ts b/src/client/client.ts
+index a81d496..97c56e4 100644
+--- a/src/client/client.ts
++++ b/src/client/client.ts
+@@ -6,7 +6,7 @@ import type { User } from '../types/user/index.ts'
+ import type { Guild } from '../types/guild/index.ts'
+ import { IntentBits, type IntentResolvable } from '../types/types.ts'
+ import { INTERACTION_TYPES } from '../utils/constants.ts'
+-import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel } from '../builders/index.ts'
++import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
+ import { CommandManager } from '../commands/index.ts'
+ import { ComponentManager } from '../components/index.ts'
+ import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
+@@ -355,26 +355,30 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+         }
+ 
+         if (Array.isArray(d.emojis)) {
+-          for (const raw of d.emojis as import('../types/expressions/index.ts').Emoji[]) {
+-            this.cache.emojis.set(raw.id as string, raw)
++          for (const raw of d.emojis as Record<string, unknown>[]) {
++            const emoji = buildEmoji(raw)
++            if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
+           }
+         }
+ 
+         if (Array.isArray(d.stickers)) {
+-          for (const raw of d.stickers as import('../types/expressions/index.ts').Sticker[]) {
+-            this.cache.stickers.set(raw.id, raw)
++          for (const raw of d.stickers as Record<string, unknown>[]) {
++            const sticker = buildSticker(raw)
++            this.cache.stickers.set(sticker.id, sticker)
+           }
+         }
+ 
+         if (Array.isArray(d.stage_instances)) {
+-          for (const raw of d.stage_instances as import('../types/stage/index.ts').StageInstance[]) {
+-            this.cache.stageInstances.set(raw.id, raw)
++          for (const raw of d.stage_instances as Record<string, unknown>[]) {
++            const stage = buildStageInstance(raw)
++            this.cache.stageInstances.set(stage.id, stage)
+           }
+         }
+ 
+         if (Array.isArray(d.guild_scheduled_events)) {
+-          for (const raw of d.guild_scheduled_events as import('../types/scheduled/index.ts').GuildScheduledEvent[]) {
+-            this.cache.scheduledEvents.set(raw.id, raw)
++          for (const raw of d.guild_scheduled_events as Record<string, unknown>[]) {
++            const event = buildScheduledEvent(raw)
++            this.cache.scheduledEvents.set(event.id, event)
+           }
+         }
+ 
+@@ -587,7 +591,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+         this.dispatch('MESSAGE_CREATE', {
+           type: 'MESSAGE_CREATE',
+           message,
+-          channel: resolveChannel(message.channelId, this.cache) as import('../events/index.ts').PartialChannel
++          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel
+         })
+         break
+       }
+@@ -599,7 +603,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+         this.dispatch('MESSAGE_UPDATE', {
+           type: 'MESSAGE_UPDATE',
+           message,
+-          channel: resolveChannel(message.channelId, this.cache) as import('../events/index.ts').PartialChannel,
++          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel,
+           ...(oldMessage ? { oldMessage } : {})
+         })
+         break
+@@ -700,7 +704,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+ 
+         this.dispatch('INTERACTION_CREATE', {
+           type: 'INTERACTION_CREATE',
+-          interaction: d as unknown as import('../types/interaction/index.ts').Interaction
++          interaction: buildInteraction(d as Record<string, unknown>, this.cache)
+         })
+         break
+       }
+@@ -708,7 +712,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       case 'VOICE_STATE_UPDATE': {
+         this.dispatch('VOICE_STATE_UPDATE', {
+           type: 'VOICE_STATE_UPDATE',
+-          voiceState: d as unknown as import('../types/voice/index.ts').Voice
++          voiceState: buildVoiceState(d as Record<string, unknown>, this.cache)
+         })
+         break
+       }
+@@ -761,15 +765,15 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'ENTITLEMENT_CREATE': {
+-        this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
++        this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+         break
+       }
+       case 'ENTITLEMENT_UPDATE': {
+-        this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
++        this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+         break
+       }
+       case 'ENTITLEMENT_DELETE': {
+-        this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: d as unknown as import('../types/entitlement/index.ts').Entitlement })
++        this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+         break
+       }
+ 
+@@ -916,7 +920,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'GUILD_EMOJIS_UPDATE': {
+-        const emojis = d.emojis as import('../types/expressions/index.ts').Emoji[]
++        const emojis = (d.emojis as Record<string, unknown>[]).map(raw => buildEmoji(raw))
+         for (const emoji of emojis) {
+           if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
+         }
+@@ -929,7 +933,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'GUILD_STICKERS_UPDATE': {
+-        const stickers = d.stickers as import('../types/expressions/index.ts').Sticker[]
++        const stickers = (d.stickers as Record<string, unknown>[]).map(raw => buildSticker(raw))
+         for (const sticker of stickers) {
+           this.cache.stickers.set(sticker.id, sticker)
+         }
+@@ -942,38 +946,38 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'STAGE_INSTANCE_CREATE': {
+-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
++        const stageInstance = buildStageInstance(d as Record<string, unknown>)
+         this.cache.stageInstances.set(stageInstance.id, stageInstance)
+         this.dispatch('STAGE_INSTANCE_CREATE', { type: 'STAGE_INSTANCE_CREATE', stageInstance })
+         break
+       }
+       case 'STAGE_INSTANCE_UPDATE': {
+-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
++        const stageInstance = buildStageInstance(d as Record<string, unknown>)
+         this.cache.stageInstances.set(stageInstance.id, stageInstance)
+         this.dispatch('STAGE_INSTANCE_UPDATE', { type: 'STAGE_INSTANCE_UPDATE', stageInstance })
+         break
+       }
+       case 'STAGE_INSTANCE_DELETE': {
+-        const stageInstance = d as unknown as import('../types/stage/index.ts').StageInstance
++        const stageInstance = buildStageInstance(d as Record<string, unknown>)
+         this.cache.stageInstances.delete(stageInstance.id)
+         this.dispatch('STAGE_INSTANCE_DELETE', { type: 'STAGE_INSTANCE_DELETE', stageInstance })
+         break
+       }
+ 
+       case 'GUILD_SCHEDULED_EVENT_CREATE': {
+-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
++        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
+         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
+         this.dispatch('GUILD_SCHEDULED_EVENT_CREATE', { type: 'GUILD_SCHEDULED_EVENT_CREATE', scheduledEvent })
+         break
+       }
+       case 'GUILD_SCHEDULED_EVENT_UPDATE': {
+-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
++        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
+         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
+         this.dispatch('GUILD_SCHEDULED_EVENT_UPDATE', { type: 'GUILD_SCHEDULED_EVENT_UPDATE', scheduledEvent })
+         break
+       }
+       case 'GUILD_SCHEDULED_EVENT_DELETE': {
+-        const scheduledEvent = d as unknown as import('../types/scheduled/index.ts').GuildScheduledEvent
++        const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
+         this.cache.scheduledEvents.delete(scheduledEvent.id)
+         this.dispatch('GUILD_SCHEDULED_EVENT_DELETE', { type: 'GUILD_SCHEDULED_EVENT_DELETE', scheduledEvent })
+         break
+@@ -988,19 +992,19 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'AUTO_MODERATION_RULE_CREATE': {
+-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
++        const rule = buildAutoModRule(d as Record<string, unknown>)
+         this.cache.autoModRules.set(rule.id, rule)
+         this.dispatch('AUTO_MODERATION_RULE_CREATE', { type: 'AUTO_MODERATION_RULE_CREATE', rule })
+         break
+       }
+       case 'AUTO_MODERATION_RULE_UPDATE': {
+-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
++        const rule = buildAutoModRule(d as Record<string, unknown>)
+         this.cache.autoModRules.set(rule.id, rule)
+         this.dispatch('AUTO_MODERATION_RULE_UPDATE', { type: 'AUTO_MODERATION_RULE_UPDATE', rule })
+         break
+       }
+       case 'AUTO_MODERATION_RULE_DELETE': {
+-        const rule = d as unknown as import('../types/automod/index.ts').AutoModerationRule
++        const rule = buildAutoModRule(d as Record<string, unknown>)
+         this.cache.autoModRules.delete(rule.id)
+         this.dispatch('AUTO_MODERATION_RULE_DELETE', { type: 'AUTO_MODERATION_RULE_DELETE', rule })
+         break
+@@ -1023,13 +1027,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
+       }
+ 
+       case 'INTEGRATION_CREATE': {
+-        const integration = d as unknown as import('../types/integration/index.ts').Integration
++        const integration = buildIntegration(d as Record<string, unknown>)
+         this.cache.integrations.set(integration.id, integration)
+         this.dispatch('INTEGRATION_CREATE', { type: 'INTEGRATION_CREATE', guildId: d.guild_id as string, integration })
+         break
+       }
+       case 'INTEGRATION_UPDATE': {
+-        const integration = d as unknown as import('../types/integration/index.ts').Integration
++        const integration = buildIntegration(d as Record<string, unknown>)
+         this.cache.integrations.set(integration.id, integration)
+         this.dispatch('INTEGRATION_UPDATE', { type: 'INTEGRATION_UPDATE', guildId: d.guild_id as string, integration })
+         break
+diff --git a/src/commands/command.ts b/src/commands/command.ts
+index 98208f9..011b095 100644
+--- a/src/commands/command.ts
++++ b/src/commands/command.ts
+@@ -1,21 +1,21 @@
+-import type { OptionDef, ResolveOptions } from './options.js'
++import type { OptionDef, ResolveOptions, OptionType } from './options.js'
+ import type { CommandContext } from './context.js'
+ 
+-export type ExecuteFunction<O extends Record<string, OptionDef<any, boolean>>> = (ctx: CommandContext<ResolveOptions<O>>) => void | Promise<void>
++export type ExecuteFunction<O extends Record<string, OptionDef<OptionType, boolean>>> = (ctx: CommandContext<ResolveOptions<O>>) => void | Promise<void>
+ 
+-export interface Subcommand<O extends Record<string, OptionDef<any, boolean>> = Record<string, never>> {
++export interface Subcommand<O extends Record<string, OptionDef<OptionType, boolean>> = Record<string, never>> {
+   description: string
+   options?: O
+   execute: ExecuteFunction<O>
+ }
+ 
+-export function defineSubcommand<O extends Record<string, OptionDef<any, boolean>>>(def: Subcommand<O>): Subcommand<O> {
++export function defineSubcommand<O extends Record<string, OptionDef<OptionType, boolean>>>(def: Subcommand<O>): Subcommand<O> {
+   return def
+ }
+ 
+ export type CommandDef<
+-  O extends Record<string, OptionDef<any, boolean>> = Record<string, never>,
+-  S extends Record<string, Subcommand<any>> = Record<string, never>
++  O extends Record<string, OptionDef<OptionType, boolean>> = Record<string, never>,
++  S extends Record<string, Subcommand<Record<string, OptionDef<OptionType, boolean>>>> = Record<string, never>
+ > = {
+   name: string
+   description: string
+@@ -24,9 +24,11 @@ export type CommandDef<
+   execute?: ExecuteFunction<O>
+ }
+ 
++export type AnyCommandDef = CommandDef<Record<string, OptionDef<OptionType, boolean>>, Record<string, Subcommand<Record<string, OptionDef<OptionType, boolean>>>>>
++
+ export function defineCommand<
+-  O extends Record<string, OptionDef<any, boolean>>,
+-  S extends Record<string, Subcommand<any>>
++  O extends Record<string, OptionDef<OptionType, boolean>>,
++  S extends Record<string, Subcommand<Record<string, OptionDef<OptionType, boolean>>>>
+ >(def: CommandDef<O, S>): CommandDef<O, S> {
+ 
+   if (!def.execute && (!def.subcommands || Object.keys(def.subcommands).length === 0)) {
+diff --git a/src/commands/context.ts b/src/commands/context.ts
+index f757816..98e97ab 100644
+--- a/src/commands/context.ts
++++ b/src/commands/context.ts
+@@ -2,40 +2,39 @@ import type { Client } from '../client/client.js'
+ import type { User } from '../types/user/index.js'
+ import type { Guild } from '../types/guild/index.js'
+ import type { Channel } from '../types/channel/index.js'
+-import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES } from '../utils/constants.js'
++import type { Embed } from '../types/message/index.js'
++import type { MessageComponent } from '../types/components/index.js'
++import { serializeComponent } from '../builders/index.js'
++import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
+ 
+ export type InteractionReplyOptions = string | {
+   content?: string
+-  embeds?: any[]
+-  components?: any[]
++  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
++  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+   ephemeral?: boolean
+ }
+ 
+-export class CommandContext<Options = Record<string, any>> {
+-
+-  public options: Options
++export class BaseInteractionContext {
+   public user: User
+   public guild?: Guild | { id: string } | undefined
+   public channel?: Channel | { id: string } | undefined
+   public interactionId: string
+   public interactionToken: string
+ 
+-  private _client: Client
+-  private _deferred = false
+-  private _replied = false
++  protected _client: Client
++  protected _deferred = false
++  protected _replied = false
+ 
+   constructor(
+     client: Client,
+-    rawInteraction: Record<string, any>,
+-    parsedOptions: Options,
++    raw: Record<string, unknown>,
+     user: User,
+     guild?: Guild | { id: string },
+     channel?: Channel | { id: string }
+   ) {
+     this._client = client
+-    this.interactionId = rawInteraction.id
+-    this.interactionToken = rawInteraction.token
+-    this.options = parsedOptions
++    this.interactionId = raw.id as string
++    this.interactionToken = raw.token as string
+     this.user = user
+     this.guild = guild
+     this.channel = channel
+@@ -44,12 +43,34 @@ export class CommandContext<Options = Record<string, any>> {
+   get replied() { return this._replied }
+   get deferred() { return this._deferred }
+ 
++  protected _resolvePayload(payload: InteractionReplyOptions): Record<string, unknown> {
++
++    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
++    
++    if (typeof payload === 'object') {
++      
++      if (payload.ephemeral) data.flags = MESSAGE_FLAGS.EPHEMERAL
++      if (payload.embeds) {
++        data.embeds = payload.embeds.map((e: unknown) => {
++          if (e && typeof (e as Record<string, unknown>).toJSON === 'function') {
++            return (e as { toJSON(): Record<string, unknown> }).toJSON()
++          }
++          return e
++        })
++      }
++
++      if (payload.components) {
++        data.components = payload.components.map(c => serializeComponent(c))
++      }
++    }
++    return data
++  }
++
+   async reply(payload: InteractionReplyOptions): Promise<void> {
+ 
+     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+     
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
++    const data = this._resolvePayload(payload)
+ 
+     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+       type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
+@@ -64,36 +85,33 @@ export class CommandContext<Options = Record<string, any>> {
+     
+     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+       type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+-      data: {
+-        flags: options?.ephemeral ? 64 : 0
+-      }
++      data: { flags: options?.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0 }
+     })
+     this._deferred = true
+   }
+ 
+   async followUp(payload: InteractionReplyOptions): Promise<void> {
++
++    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
+     
+-    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged. Use reply or defer first.')
+-    
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
++    const data = this._resolvePayload(payload)
+ 
+     await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+   }
+ 
+-  async showModal(modal: any): Promise<void> {
++  async showModal(modal: Record<string, unknown>): Promise<void> {
+ 
+     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+     
+     const payload = modal.type === 'modal' ? {
+       custom_id: modal.customId,
+       title: modal.title,
+-      components: modal.fields.map((f: any) => ({
++      components: Array.isArray(modal.fields) ? modal.fields.map((f: Record<string, unknown>) => ({
+         type: COMPONENT_TYPES.ACTION_ROW,
+         components: [{
+           type: COMPONENT_TYPES.TEXT_INPUT,
+           custom_id: f.id,
+-          style: f.type, // 1 short, 2 paragraph
++          style: f.type,
+           label: f.label,
+           required: f.required,
+           min_length: f.minLength,
+@@ -101,7 +119,7 @@ export class CommandContext<Options = Record<string, any>> {
+           placeholder: f.placeholder,
+           value: f.value
+         }]
+-      }))
++      })) : []
+     } : modal
+ 
+     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+@@ -110,4 +128,21 @@ export class CommandContext<Options = Record<string, any>> {
+     })
+     this._replied = true
+   }
++}
++
++export class CommandContext<Options = Record<string, unknown>> extends BaseInteractionContext {
++  
++  public options: Options
++
++  constructor(
++    client: Client,
++    rawInteraction: Record<string, unknown>,
++    parsedOptions: Options,
++    user: User,
++    guild?: Guild | { id: string },
++    channel?: Channel | { id: string }
++  ) {
++    super(client, rawInteraction, user, guild, channel)
++    this.options = parsedOptions
++  }
+ }
+\ No newline at end of file
+diff --git a/src/commands/interactions.ts b/src/commands/interactions.ts
+index 5391cff..1c108a0 100644
+--- a/src/commands/interactions.ts
++++ b/src/commands/interactions.ts
+@@ -2,180 +2,42 @@ import type { Client } from '../client/client.js'
+ import type { User } from '../types/user/index.js'
+ import type { Guild } from '../types/guild/index.js'
+ import type { Channel } from '../types/channel/index.js'
+-import type { InteractionReplyOptions } from './context.js'
+-import { INTERACTION_CALLBACK_TYPES } from '../utils/constants.js'
++import { BaseInteractionContext } from './context.js'
+ 
+-export class ComponentContext {
+-  
+-  public customId: string
+-  public user: User
+-  public guild?: Guild | { id: string } | undefined
+-  public channel?: Channel | { id: string } | undefined
+-  public message?: Record<string, unknown>
+-
+-  public interactionId: string
+-  public interactionToken: string
+-
+-  private _client: Client
+-  private _deferred = false
+-  private _replied = false
+-
+-  constructor(
+-    client: Client,
+-    raw: Record<string, any>,
+-    user: User,
+-    guild?: Guild | { id: string },
+-    channel?: Channel | { id: string }
+-  ) {
+-    this._client = client
+-    this.interactionId = raw.id
+-    this.interactionToken = raw.token
+-    this.customId = raw.data?.custom_id ?? ''
+-    this.message = raw.message
+-    this.user = user
+-    this.guild = guild
+-    this.channel = channel
+-  }
+-
+-  get replied() { return this._replied }
+-  get deferred() { return this._deferred }
+-
+-  /** Values from a select menu interaction */
+-  get values(): string[] {
+-    return (this as any)._values ?? []
+-  }
+-
+-  async reply(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-    
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
+-      data
+-    })
+-    this._replied = true
+-  }
+-
+-  async deferUpdate(): Promise<void> {
+-    
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
+-    })
+-    this._deferred = true
+-  }
+-
+-  async update(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
+-      data
+-    })
+-    this._replied = true
+-  }
+-
+-  async followUp(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-    
+-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+-  }
+-}
+-
+-export class ModalContext {
++export class ModalContext extends BaseInteractionContext {
+ 
+   public customId: string
+-  public user: User
+-  public guild?: Guild | { id: string } | undefined
+-  public channel?: Channel | { id: string } | undefined
+-  public interactionId: string
+-  public interactionToken: string
+-
+   private _fields: Map<string, string> = new Map()
+-  private _client: Client
+-  private _replied = false
+-  private _deferred = false
+ 
+   constructor(
+     client: Client,
+-    raw: Record<string, any>,
++    raw: Record<string, unknown>,
+     user: User,
+     guild?: Guild | { id: string },
+     channel?: Channel | { id: string }
+   ) {
+-    this._client = client
+-    this.interactionId = raw.id
+-    this.interactionToken = raw.token
+-    this.customId = raw.data?.custom_id ?? ''
+-    this.user = user
+-    this.guild = guild
+-    this.channel = channel
++    super(client, raw, user, guild, channel)
++    this.customId = (raw.data as Record<string, unknown>)?.custom_id as string ?? ''
+ 
+     // parse modal fields from action rows
+-    const rows = raw.data?.components ?? []
++    const rows = (raw.data as Record<string, unknown>)?.components as Record<string, unknown>[] ?? []
+     for (const row of rows) {
+-      for (const comp of row.components ?? []) {
++      for (const comp of (row.components as Record<string, unknown>[]) ?? []) {
+         if (comp.custom_id && comp.value !== undefined) {
+-          this._fields.set(comp.custom_id, comp.value)
++          this._fields.set(comp.custom_id as string, comp.value as string)
+         }
+       }
+     }
+   }
+ 
+-  get replied() { return this._replied }
+-  get deferred() { return this._deferred }
+-
+-  /** Get a text input value by its customId */
+-  getField(customId: string): string | undefined {
+-    return this._fields.get(customId)
++  // Get a text input value by its customId
++  // values from a select menu interaction
++  get values(): string[] {
++    return ((this as unknown) as Record<string, string[]>)._values ?? []
+   }
+ 
+-  /** Get all field values as a plain object */
++  // Get all field values as a plain object
+   get fields(): Record<string, string> {
+     return Object.fromEntries(this._fields)
+   }
+-
+-  async reply(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
+-      data
+-    })
+-    this._replied = true
+-  }
+-
+-  async defer(options?: { ephemeral?: boolean }): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+-      data: { flags: options?.ephemeral ? 64 : 0 }
+-    })
+-    this._deferred = true
+-  }
+-
+-  async followUp(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-
+-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+-  }
+ }
+\ No newline at end of file
+diff --git a/src/commands/manager.ts b/src/commands/manager.ts
+index 9025ffb..8bc0b89 100644
+--- a/src/commands/manager.ts
++++ b/src/commands/manager.ts
+@@ -1,26 +1,52 @@
+ import type { Client } from '../client/client.js'
+-import type { CommandDef } from './command.js'
++import type { AnyCommandDef } from './command.js'
+ import { CommandContext } from './context.js'
+-import { ComponentContext, ModalContext } from './interactions.js'
++import { ModalContext } from './interactions.js'
++import { ComponentContext } from '../components/context.js'
+ import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
+-import { COMMAND_OPTION_TYPES, INTERACTION_TYPES, COMPONENT_TYPES } from '../utils/constants.js'
++import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
++import type { OptionType } from './options.js'
+ 
+ export interface ComponentHandler {
+-  customId: string | RegExp
+-  execute: (ctx: ComponentContext) => any | Promise<any>
++  type?: string
++  customId?: string | RegExp
++  execute?: (ctx: ComponentContext) => unknown | Promise<unknown>
+ }
+ 
+ export interface ModalHandler {
+   customId: string | RegExp
+-  execute: (ctx: ModalContext) => any | Promise<any>
++  execute: (ctx: ModalContext) => unknown | Promise<unknown>
+ }
+ 
+ import * as fs from 'fs'
+ import * as path from 'path'
+ 
++/** Shape of the `data` field inside a raw Discord interaction payload */
++interface InteractionData {
++  name?: string
++  custom_id?: string
++  component_type?: number
++  options?: InteractionOption[]
++  resolved?: {
++    users?: Record<string, Record<string, unknown>>
++    channels?: Record<string, Record<string, unknown>>
++    roles?: Record<string, Record<string, unknown>>
++    members?: Record<string, Record<string, unknown>>
++  }
++  values?: unknown[]
++  components?: unknown[]
++}
++
++interface InteractionOption {
++  name: string
++  type: number
++  value?: unknown
++  options?: InteractionOption[]
++}
++
+ export class CommandManager {
+ 
+-  private _commands = new Map<string, CommandDef<any, any>>()
++  private _commands = new Map<string, AnyCommandDef>()
+   private _components: ComponentHandler[] = []
+   private _modals: ModalHandler[] = []
+   private _client: Client
+@@ -29,7 +55,7 @@ export class CommandManager {
+     this._client = client
+   }
+ 
+-  register(...commands: CommandDef<any, any>[]) {
++  register(...commands: AnyCommandDef[]) {
+     for (const cmd of commands) {
+       this._commands.set(cmd.name, cmd)
+     }
+@@ -55,7 +81,7 @@ export class CommandManager {
+     }
+ 
+     const files = fs.readdirSync(fullPath).filter(f => f.endsWith('.js') || f.endsWith('.ts'))
+-    const commands: CommandDef<any, any>[] = []
++    const commands: AnyCommandDef[] = []
+ 
+     for (const file of files) {
+ 
+@@ -79,7 +105,7 @@ export class CommandManager {
+     }
+   }
+ 
+-  private async _deployCommands(commands: CommandDef<any, any>[]) {
++  private async _deployCommands(commands: AnyCommandDef[]) {
+ 
+     const payload = commands.map(c => this._transformCommand(c))
+ 
+@@ -93,7 +119,7 @@ export class CommandManager {
+     }
+   }
+ 
+-  private _transformCommand(cmd: CommandDef<any, any>) {
++  private _transformCommand(cmd: AnyCommandDef) {
+ 
+     const mapType = (t: string) => {
+       switch(t) {
+@@ -108,25 +134,25 @@ export class CommandManager {
+       }
+     }
+ 
+-    const options: any[] = []
++    const options: unknown[] = []
+ 
+     if (cmd.subcommands) {
+ 
+-      for (const [subName, subDefRaw] of Object.entries(cmd.subcommands)) {
++      for (const [subName, subDef] of Object.entries(cmd.subcommands)) {
+ 
+-        const subDef = subDefRaw as any
+-        const subOpts: any[] = []
++        const subOpts: unknown[] = []
+ 
+         if (subDef.options) {
+-          for (const [optName, optDef] of Object.entries(subDef.options)) {
++          for (const [optName, optDefRaw] of Object.entries(subDef.options)) {
++             const optDef = optDefRaw as import('./options.js').OptionDef<OptionType, boolean>
+              subOpts.push({
+-               type: mapType((optDef as any).type),
++               type: mapType(optDef.type),
+                name: optName,
+-               description: (optDef as any).description,
+-               required: (optDef as any).required,
+-               choices: (optDef as any).choices,
+-               min_value: (optDef as any).min,
+-               max_value: (optDef as any).max
++               description: optDef.description,
++               required: optDef.required,
++               choices: optDef.choices,
++               min_value: optDef.min,
++               max_value: optDef.max
+              })
+           }
+         }
+@@ -138,15 +164,16 @@ export class CommandManager {
+         })
+       }
+     } else if (cmd.options) {
+-      for (const [optName, optDef] of Object.entries(cmd.options)) {
++      for (const [optName, optDefRaw] of Object.entries(cmd.options)) {
++        const optDef = optDefRaw as import('./options.js').OptionDef<OptionType, boolean>
+         options.push({
+-           type: mapType((optDef as any).type),
++           type: mapType(optDef.type),
+            name: optName,
+-           description: (optDef as any).description,
+-           required: (optDef as any).required,
+-           choices: (optDef as any).choices,
+-           min_value: (optDef as any).min,
+-           max_value: (optDef as any).max
++           description: optDef.description,
++           required: optDef.required,
++           choices: optDef.choices,
++           min_value: optDef.min,
++           max_value: optDef.max
+         })
+       }
+     }
+@@ -158,26 +185,31 @@ export class CommandManager {
+     }
+   }
+ 
+-  public async handleInteraction(raw: any) {
++  public async handleInteraction(raw: Record<string, unknown>) {
+ 
+-    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._handleComponentInteraction(raw)
+-    if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw)
++    const data = raw.data as InteractionData | undefined
++    if (!data) return
++
++    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._handleComponentInteraction(raw, data)
++    if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw, data)
+     if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND) return
+ 
+-    const name = raw.data.name
++    const name = data.name
++    if (!name) return
++
+     const command = this._commands.get(name)
+     if (!command) return
+ 
+-    const parsedOptions: Record<string, any> = {}
++    const parsedOptions: Record<string, unknown> = {}
+     let targetExecute = command.execute
+ 
+-    const rawOptions = raw.data.options || []
++    const rawOptions = data.options || []
+ 
+-    let actualOptions = rawOptions
++    let actualOptions: InteractionOption[] = rawOptions
+ 
+-    if (rawOptions.length > 0 && rawOptions[0].type === COMMAND_OPTION_TYPES.SUB_COMMAND) { // SUB_COMMAND
+-      const subcommandName = rawOptions[0].name
+-      actualOptions = rawOptions[0].options || []
++    if (rawOptions.length > 0 && rawOptions[0]!.type === COMMAND_OPTION_TYPES.SUB_COMMAND) {
++      const subcommandName = rawOptions[0]!.name
++      actualOptions = rawOptions[0]!.options || []
+ 
+       if (command.subcommands && command.subcommands[subcommandName]) {
+         targetExecute = command.subcommands[subcommandName].execute
+@@ -185,91 +217,90 @@ export class CommandManager {
+     }
+ 
+     for (const opt of actualOptions) {
+-      if (opt.type === COMMAND_OPTION_TYPES.USER && raw.data.resolved?.users?.[opt.value]) { // User
+-        parsedOptions[opt.name] = resolveUser(opt.value, this._client.cache)
+-      } else if (opt.type === COMMAND_OPTION_TYPES.CHANNEL && raw.data.resolved?.channels?.[opt.value]) { // Channel
+-        parsedOptions[opt.name] = resolveChannel(opt.value, this._client.cache)
+-      } else if (opt.type === COMMAND_OPTION_TYPES.ROLE && raw.data.resolved?.roles?.[opt.value]) { // Role
+-        parsedOptions[opt.name] = resolveRole(opt.value, this._client.cache)
++      if (opt.type === COMMAND_OPTION_TYPES.USER && data.resolved?.users?.[opt.value as string]) {
++        parsedOptions[opt.name] = resolveUser(opt.value as string, this._client)
++      } else if (opt.type === COMMAND_OPTION_TYPES.CHANNEL && data.resolved?.channels?.[opt.value as string]) {
++        parsedOptions[opt.name] = resolveChannel(opt.value as string, this._client)
++      } else if (opt.type === COMMAND_OPTION_TYPES.ROLE && data.resolved?.roles?.[opt.value as string]) {
++        parsedOptions[opt.name] = resolveRole(opt.value as string, this._client, raw.guild_id as string | undefined)
+       } else {
+         parsedOptions[opt.name] = opt.value
+       }
+     }
+ 
+-    const member = raw.member || {}
+-    const userRaw = member.user || raw.user
++    const member = raw.member as Record<string, unknown> | undefined
++    const userRaw = member?.user ?? raw.user
+ 
+-    const user = buildUser(userRaw)
++    const user = buildUser(userRaw as Record<string, unknown>)
+ 
+     const ctx = new CommandContext(
+       this._client,
+       raw,
+       parsedOptions,
+       user,
+-      raw.guild_id ? resolveGuild(raw.guild_id, this._client.cache) : undefined,
+-      raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
++      raw.guild_id ? resolveGuild(raw.guild_id as string, this._client) : undefined,
++      raw.channel_id ? resolveChannel(raw.channel_id as string, this._client) : undefined
+     )
+ 
+     if (targetExecute) {
+       try {
+-        await targetExecute(ctx)
++        await targetExecute(ctx as unknown)
+       } catch (err) {
+         console.error(`[Chameleon] Error executing command ${name}:`, err)
+       }
+     }
+   }
+ 
+-  private async _handleComponentInteraction(raw: any) {
++  private async _handleComponentInteraction(raw: Record<string, unknown>, data: InteractionData) {
+ 
+-    const customId = raw.data.custom_id
+-    const handler = this._components.find(h => 
+-      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId)
+-    )
++    const customId = data.custom_id
++    const handler = this._components.find(h => {
++      if (!h.customId) return false
++      return typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId as string)
++    })
+ 
+     if (!handler) return
+ 
+-    const userRaw = raw.member?.user || raw.user
+-    const user = buildUser(userRaw)
++    const member = raw.member as Record<string, unknown> | undefined
++    const userRaw = member?.user ?? raw.user
++    const user = buildUser(userRaw as Record<string, unknown>)
+     const ctx = new ComponentContext(
+       this._client,
+       raw,
+       user,
+-      raw.guild_id ? resolveGuild(raw.guild_id, this._client.cache) : undefined,
+-      raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
++      raw.guild_id ? resolveGuild(raw.guild_id as string, this._client) : undefined,
++      raw.channel_id ? resolveChannel(raw.channel_id as string, this._client) : undefined
+     )
+ 
+-    if (raw.data.component_type === COMPONENT_TYPES.STRING_SELECT || raw.data.component_type === COMPONENT_TYPES.USER_SELECT || raw.data.component_type === COMPONENT_TYPES.ROLE_SELECT || raw.data.component_type === COMPONENT_TYPES.MENTIONABLE_SELECT || raw.data.component_type === COMPONENT_TYPES.CHANNEL_SELECT) {
+-      (ctx as any)._values = raw.data.values || []
+-    }
+-
+     try {
+-      await handler.execute(ctx)
++      await handler.execute?.(ctx)
+     } catch (err) {
+       console.error(`[Chameleon] Error executing component ${customId}:`, err)
+     }
+   }
+ 
+-  private async _handleModalInteraction(raw: any) {
++  private async _handleModalInteraction(raw: Record<string, unknown>, data: InteractionData) {
+ 
+-    const customId = raw.data.custom_id
++    const customId = data.custom_id
+     const handler = this._modals.find(h => 
+-      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId)
++      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId as string)
+     )
+     
+     if (!handler) return
+ 
+-    const userRaw = raw.member?.user || raw.user
+-    const user = buildUser(userRaw)
++    const member = raw.member as Record<string, unknown> | undefined
++    const userRaw = member?.user ?? raw.user
++    const user = buildUser(userRaw as Record<string, unknown>)
+     const ctx = new ModalContext(
+       this._client,
+       raw,
+       user,
+-      raw.guild_id ? resolveGuild(raw.guild_id, this._client.cache) : undefined,
+-      raw.channel_id ? resolveChannel(raw.channel_id, this._client.cache) : undefined
++      raw.guild_id ? resolveGuild(raw.guild_id as string, this._client) : undefined,
++      raw.channel_id ? resolveChannel(raw.channel_id as string, this._client) : undefined
+     )
+ 
+     try {
+-      await handler.execute(ctx)
++      await handler.execute?.(ctx)
+     } catch (err) {
+       console.error(`[Chameleon] Error executing modal ${customId}:`, err)
+     }
+diff --git a/src/commands/options.ts b/src/commands/options.ts
+index 20e0c84..1e7442b 100644
+--- a/src/commands/options.ts
++++ b/src/commands/options.ts
+@@ -22,10 +22,10 @@ export type ResolveOptionType<T extends OptionType> =
+   T extends 'role' ? Role :
+   never
+ 
+-export type ResolveOption<O extends OptionDef<any, boolean>> =
++export type ResolveOption<O extends OptionDef<OptionType, boolean>> =
+   O['required'] extends true ? ResolveOptionType<O['type']> : ResolveOptionType<O['type']> | undefined
+ 
+-export type ResolveOptions<O extends Record<string, OptionDef<any, boolean>>> = {
++export type ResolveOptions<O extends Record<string, OptionDef<OptionType, boolean>>> = {
+   [K in keyof O]: ResolveOption<O[K]>
+ }
+ 
+diff --git a/src/components/actionRow.ts b/src/components/actionRow.ts
+index 2c56b1d..fcbfa05 100644
+--- a/src/components/actionRow.ts
++++ b/src/components/actionRow.ts
+@@ -1,71 +1,90 @@
+ import { resolveButtonStyle } from './define.js'
++import type { ButtonDef, StringSelectDef, UserSelectDef, RoleSelectDef, MentionableSelectDef, ChannelSelectDef, ModalFieldDef } from './define.js'
+ import { COMPONENT_TYPES, TEXT_INPUT_STYLES } from '../utils/constants.js'
+ 
++type ComponentInput = 
++  | (ButtonDef & { type: 'button' })
++  | (StringSelectDef & { type: 'string_select' })
++  | (UserSelectDef & { type: 'user_select' })
++  | (RoleSelectDef & { type: 'role_select' })
++  | (MentionableSelectDef & { type: 'mentionable_select' })
++  | (ChannelSelectDef & { type: 'channel_select' })
++  | (ModalFieldDef & { id: string })
++  | Record<string, unknown>
++
+ export const ActionRow = {
+-  of: (...components: any[]) => {
++
++  of: (...components: ComponentInput[]) => {
+ 
+     return {
+       type: COMPONENT_TYPES.ACTION_ROW,
+       components: components.map(c => {
+-        if (c.type === 'button') {
++        if ('type' in c && c.type === 'button') {
++          const btn = c as ButtonDef & { type: 'button' }
+           return {
+             type: COMPONENT_TYPES.BUTTON,
+-            custom_id: c.customId,
+-            url: c.url,
+-            label: c.label,
+-            style: resolveButtonStyle(c.style),
+-            disabled: c.disabled,
+-            emoji: c.emoji,
+-            sku_id: c.skuId
++            custom_id: btn.customId,
++            url: btn.url,
++            label: btn.label,
++            style: resolveButtonStyle(btn.style),
++            disabled: btn.disabled,
++            emoji: btn.emoji,
++            sku_id: btn.skuId
+           }
+         }
+ 
+-        if (c.type === 'string_select') {
++        if ('type' in c && c.type === 'string_select') {
++          const sel = c as StringSelectDef & { type: 'string_select' }
+           return {
+             type: COMPONENT_TYPES.STRING_SELECT,
+-            custom_id: c.customId,
+-            options: c.options,
+-            placeholder: c.placeholder,
+-            min_values: c.minValues,
+-            max_values: c.maxValues,
+-            disabled: c.disabled
++            custom_id: sel.customId,
++            options: sel.options,
++            placeholder: sel.placeholder,
++            min_values: sel.minValues,
++            max_values: sel.maxValues,
++            disabled: sel.disabled
+           }
+         }
+ 
+-        if (c.type === 'user_select') {
+-          return { type: COMPONENT_TYPES.USER_SELECT, custom_id: c.customId, placeholder: c.placeholder, min_values: c.minValues, max_values: c.maxValues, disabled: c.disabled }
++        if ('type' in c && c.type === 'user_select') {
++          const sel = c as UserSelectDef & { type: 'user_select' }
++          return { type: COMPONENT_TYPES.USER_SELECT, custom_id: sel.customId, placeholder: sel.placeholder, min_values: sel.minValues, max_values: sel.maxValues, disabled: sel.disabled }
+         }
+ 
+-        if (c.type === 'role_select') {
+-          return { type: COMPONENT_TYPES.ROLE_SELECT, custom_id: c.customId, placeholder: c.placeholder, min_values: c.minValues, max_values: c.maxValues, disabled: c.disabled }
++        if ('type' in c && c.type === 'role_select') {
++          const sel = c as RoleSelectDef & { type: 'role_select' }
++          return { type: COMPONENT_TYPES.ROLE_SELECT, custom_id: sel.customId, placeholder: sel.placeholder, min_values: sel.minValues, max_values: sel.maxValues, disabled: sel.disabled }
+         }
+ 
+-        if (c.type === 'mentionable_select') {
+-          return { type: COMPONENT_TYPES.MENTIONABLE_SELECT, custom_id: c.customId, placeholder: c.placeholder, min_values: c.minValues, max_values: c.maxValues, disabled: c.disabled }
++        if ('type' in c && c.type === 'mentionable_select') {
++          const sel = c as MentionableSelectDef & { type: 'mentionable_select' }
++          return { type: COMPONENT_TYPES.MENTIONABLE_SELECT, custom_id: sel.customId, placeholder: sel.placeholder, min_values: sel.minValues, max_values: sel.maxValues, disabled: sel.disabled }
+         }
+         
+-        if (c.type === 'channel_select') {
+-          return { type: COMPONENT_TYPES.CHANNEL_SELECT, custom_id: c.customId, channel_types: c.channelTypes, placeholder: c.placeholder, min_values: c.minValues, max_values: c.maxValues, disabled: c.disabled }
++        if ('type' in c && c.type === 'channel_select') {
++          const sel = c as ChannelSelectDef & { type: 'channel_select' }
++          return { type: COMPONENT_TYPES.CHANNEL_SELECT, custom_id: sel.customId, channel_types: sel.channelTypes, placeholder: sel.placeholder, min_values: sel.minValues, max_values: sel.maxValues, disabled: sel.disabled }
+         }
+ 
+-        if (c.type === TEXT_INPUT_STYLES.SHORT || c.type === TEXT_INPUT_STYLES.PARAGRAPH) {
++        if ('type' in c && (c.type === TEXT_INPUT_STYLES.SHORT || c.type === TEXT_INPUT_STYLES.PARAGRAPH)) {
++          const field = c as ModalFieldDef & { id: string }
+           return {
+             type: COMPONENT_TYPES.TEXT_INPUT,
+-            custom_id: c.id,
+-            style: c.type,
+-            label: c.label,
+-            required: c.required,
+-            min_length: c.minLength,
+-            max_length: c.maxLength,
+-            placeholder: c.placeholder,
+-            value: c.value
++            custom_id: field.id,
++            style: field.type,
++            label: field.label,
++            required: field.required,
++            min_length: field.minLength,
++            max_length: field.maxLength,
++            placeholder: field.placeholder,
++            value: field.value
+           }
+         }
+         
+         return c // fallback for raw discord API objects
+       }).map(obj => {
+ 
+-        const clean: any = {} // remove undefined keys for cleaner JSON
++        const clean: Record<string, unknown> = {} // remove undefined keys for cleaner JSON
+         
+         for (const [k, v] of Object.entries(obj)) {
+           if (v !== undefined) clean[k] = v
+diff --git a/src/components/context.ts b/src/components/context.ts
+index 79b239c..bff958f 100644
+--- a/src/components/context.ts
++++ b/src/components/context.ts
+@@ -2,46 +2,48 @@ import type { Client } from '../client/client.js'
+ import type { User } from '../types/user/index.js'
+ import type { Guild } from '../types/guild/index.js'
+ import type { Channel } from '../types/channel/index.js'
+-import type { InteractionReplyOptions } from '../commands/context.js'
+-import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES } from '../utils/constants.js'
+-
+-export class ComponentContext<Values = any, Fields = any> {
++import { BaseInteractionContext, type InteractionReplyOptions } from '../commands/context.js'
++import { INTERACTION_CALLBACK_TYPES } from '../utils/constants.js'
++
++interface InteractionData {
++  custom_id?: string
++  values?: unknown[]
++  components?: { components: { custom_id: string, value: unknown }[] }[]
++  component_type?: number
++  resolved?: Record<string, unknown>
++}
+ 
+-  public user: User
+-  public guild?: Guild | { id: string } | undefined
+-  public channel?: Channel | { id: string } | undefined
+-  public interactionId: string
+-  public interactionToken: string
++export class ComponentContext<Values = unknown, Fields = unknown> extends BaseInteractionContext {
++  
+   public customId: string
++  public message?: Record<string, unknown>
+   public values: Values
+   public fields: Fields
+ 
+-  private _client: Client
+-  private _deferred = false
+-  private _replied = false
+-
+-  constructor (
++  constructor(
+     client: Client,
+-    rawInteraction: Record<string, any>,
++    raw: Record<string, unknown>,
+     user: User,
+     guild?: Guild | { id: string },
+     channel?: Channel | { id: string }
+   ) {
+-    this._client = client
+-    this.interactionId = rawInteraction.id
+-    this.interactionToken = rawInteraction.token
+-    this.customId = rawInteraction.data?.custom_id as string
+-    this.user = user
+-    this.guild = guild
+-    this.channel = channel
+-    
+-    this.values = (rawInteraction.data?.values as Values) ?? ([] as Values)
+-    
+-    const fields: Record<string, any> = {}
++    super(client, raw, user, guild, channel)
++
++    const data = raw.data as InteractionData | undefined
++
++    this.customId = data?.custom_id ?? ''
+     
+-    if (rawInteraction.data?.components) {
+-      for (const row of rawInteraction.data.components as any[]) {
+-        for (const comp of row.components as any[]) {
++    if (raw.message) {
++      this.message = raw.message as Record<string, unknown>
++    }
++
++    this.values = (data?.values as Values) ?? ([] as Values)
++
++    const fields: Record<string, unknown> = {}
++
++    if (data?.components) {
++      for (const row of data.components) {
++        for (const comp of row.components) {
+           fields[comp.custom_id] = comp.value
+         }
+       }
+@@ -49,41 +51,19 @@ export class ComponentContext<Values = any, Fields = any> {
+     this.fields = fields as Fields
+   }
+ 
+-  get replied() { return this._replied }
+-  get deferred() { return this._deferred }
+-
+-  async reply(payload: InteractionReplyOptions): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
+-      data
+-    })
+-    this._replied = true
+-  }
+-
+-  async defer(options?: { ephemeral?: boolean }): Promise<void> {
+-
++  async deferUpdate(): Promise<void> {
+     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+     
+     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+-      data: {
+-        flags: options?.ephemeral ? 64 : 0
+-      }
++      type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
+     })
+     this._deferred = true
+   }
+-  
+-  async update(payload: InteractionReplyOptions): Promise<void> {
+ 
++  async update(payload: InteractionReplyOptions): Promise<void> {
+     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+     
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
++    const data = this._resolvePayload(payload)
+ 
+     await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+       type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
+@@ -91,57 +71,4 @@ export class ComponentContext<Values = any, Fields = any> {
+     })
+     this._replied = true
+   }
+-  
+-  async deferUpdate(): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE,
+-    })
+-    this._deferred = true
+-  }
+-
+-  async followUp(payload: InteractionReplyOptions): Promise<void> {
+-    
+-    if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged. Use reply or defer first.')
+-    
+-    const data: any = typeof payload === 'string' ? { content: payload } : { ...payload }
+-
+-    if (typeof payload === 'object' && payload.ephemeral) data.flags = 64
+-
+-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+-  }
+-  
+-  async showModal(modal: any): Promise<void> {
+-
+-    if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
+-    
+-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+-      type: INTERACTION_CALLBACK_TYPES.MODAL,
+-      data: modal.type === 'modal' ? buildModalPayload(modal) : modal
+-    })
+-    this._replied = true
+-  }
+-}
+-
+-export function buildModalPayload(def: any) {
+-  return {
+-    custom_id: def.customId,
+-    title: def.title,
+-    components: def.fields.map((f: any) => ({
+-      type: COMPONENT_TYPES.ACTION_ROW,
+-      components: [{
+-        type: COMPONENT_TYPES.TEXT_INPUT,
+-        custom_id: f.id,
+-        style: f.type, // 1 short, 2 paragraph
+-        label: f.label,
+-        required: f.required,
+-        min_length: f.minLength,
+-        max_length: f.maxLength,
+-        placeholder: f.placeholder,
+-        value: f.value
+-      }]
+-    }))
+-  }
+ }
+\ No newline at end of file
+diff --git a/src/components/define.ts b/src/components/define.ts
+index d39a388..b92a948 100644
+--- a/src/components/define.ts
++++ b/src/components/define.ts
+@@ -127,17 +127,17 @@ export const field = {
+   })
+ }
+ 
+-export type ResolveModalFields<F extends ReadonlyArray<ModalFieldDef<any>>> = {
++export type ResolveModalFields<F extends ReadonlyArray<ModalFieldDef<unknown>>> = {
+   [K in F[number] as K['id']]: K['required'] extends false ? string | undefined : string
+ }
+ 
+-export interface ModalDef<F extends ReadonlyArray<ModalFieldDef<any>>> {
++export interface ModalDef<F extends ReadonlyArray<ModalFieldDef<unknown>>> {
+   customId: string
+   title: string
+   fields: F
+   execute: (ctx: ComponentContext<never, ResolveModalFields<F>>) => void | Promise<void>
+ }
+ 
+-export function defineModal<F extends ReadonlyArray<ModalFieldDef<any>>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
++export function defineModal<F extends ReadonlyArray<ModalFieldDef<unknown>>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
+   return { ...def, type: 'modal' }
+ }
+\ No newline at end of file
+diff --git a/src/components/manager.ts b/src/components/manager.ts
+index bfcdcfb..db44524 100644
+--- a/src/components/manager.ts
++++ b/src/components/manager.ts
+@@ -1,53 +1,58 @@
+ import type { Client } from '../client/client.js'
+ import { ComponentContext } from './context.js'
+ import { buildUser, buildChannel, resolveChannel } from '../builders/index.js'
++import type { ComponentHandler } from '../commands/manager.js'
+ 
+ export class ComponentManager {
+ 
+-  private handlers = new Map<string, any>()
++  private handlers = new Map<string, ComponentHandler>()
+ 
+   constructor(private client: Client) {}
+ 
+-  public register(...components: any[]): void {
++  public register(...components: ComponentHandler[]): void {
+ 
+     for (const comp of components) {
+-      
+-      if (comp.customId) {
++
++      if (comp.customId && typeof comp.customId === 'string') {
+         this.handlers.set(comp.customId, comp)
+       }
+     }
+   }
+ 
+-  public async handleInteraction(raw: Record<string, any>): Promise<void> {
++  public async handleInteraction(raw: Record<string, unknown>): Promise<void> {
++
++    const data = raw.data as Record<string, unknown> | undefined
++    if (!data) return
+ 
+-    const data = raw.data as Record<string, any>
+     const customId = data.custom_id as string
+-    
+     if (!customId) return
+ 
+     const handler = this.handlers.get(customId)
+     if (!handler || !handler.execute) return
+ 
+-    const user = buildUser(raw.user ?? raw.member?.user)
+-    
++    const userRaw = (raw.member as Record<string, unknown> | undefined)?.user ?? raw.user
++    const user = buildUser(userRaw as Record<string, unknown>)
++
+     let guild
+     if (raw.guild_id) {
+-      guild = this.client.cache.guilds.get(raw.guild_id) ?? { id: raw.guild_id }
++      guild = this.client.cache.guilds.get(raw.guild_id as string) ?? { id: raw.guild_id as string }
+     }
+-    
++
+     let channel
+     if (raw.channel_id) {
+-      channel = resolveChannel(raw.channel_id, this.client.cache) ?? { id: raw.channel_id }
++      channel = resolveChannel(raw.channel_id as string, this.client) ?? { id: raw.channel_id as string }
+     }
+ 
+     // Hydrate members from resolved data for select menus
+-    if (data.resolved?.members && data.resolved?.users && raw.guild_id) {
+-      for (const [id, memberData] of Object.entries(data.resolved.members as Record<string, any>)) {
++    const resolved = data.resolved as Record<string, Record<string, Record<string, unknown>>> | undefined
++
++    if (resolved?.members && resolved?.users && raw.guild_id) {
++
++      for (const [id] of Object.entries(resolved.members)) {
++
++        const userData = resolved.users[id]
+ 
+-        const userData = (data.resolved.users as Record<string, any>)[id]
+-        
+         if (userData) {
+-          const mergedMember = { ...memberData, user: userData }
+           const u = buildUser(userData)
+           this.client.cache.users.set(u.id, u)
+         }
+@@ -56,16 +61,16 @@ export class ComponentManager {
+ 
+     const ctx = new ComponentContext(this.client, raw, user, guild, channel)
+ 
+-    if (handler.type === 'user_select' && data.resolved?.users) {
+-      ctx.values = ctx.values.map((id: string) => {
+-        const uData = (data.resolved!.users as Record<string, any>)[id]
++    if (handler.type === 'user_select' && resolved?.users) {
++      ctx.values = (ctx.values as string[]).map((id: string) => {
++        const uData = resolved.users![id]
+         return uData ? buildUser(uData) : { id }
+-      })
+-    } else if (handler.type === 'channel_select' && data.resolved?.channels) {
+-      ctx.values = ctx.values.map((id: string) => {
+-        const cData = (data.resolved!.channels as Record<string, any>)[id]
+-        return cData ? buildChannel(cData, raw.guild_id) : { id }
+-      })
++      }) as typeof ctx.values
++    } else if (handler.type === 'channel_select' && resolved?.channels) {
++      ctx.values = (ctx.values as string[]).map((id: string) => {
++        const cData = resolved.channels![id]
++        return cData ? buildChannel(cData, raw.guild_id as string | undefined) : { id }
++      }) as typeof ctx.values
+     }
+ 
+     try {
+diff --git a/src/gateway/index.ts b/src/gateway/index.ts
+index f988567..d55fb1e 100644
+--- a/src/gateway/index.ts
++++ b/src/gateway/index.ts
+@@ -131,7 +131,7 @@ export class ChameleonGateway {
+     this.ws.send(JSON.stringify({ op, d }))
+   }
+ 
+-  public pendingPresence: Record<string, any> | null = null
++  public pendingPresence: Record<string, unknown> | null = null
+ 
+   /**
+    * Update the presence/status for this shard
+@@ -189,7 +189,7 @@ export class ChameleonGateway {
+       throw new Error('[GATEWAY] Cannot request guild members while disconnected')
+     }
+ 
+-    const payload: Record<string, any> = {
++    const payload: Record<string, unknown> = {
+       guild_id: options.guildId,
+       limit: options.limit,
+     }
+diff --git a/src/managers/base.ts b/src/managers/base.ts
+index b2e52cb..843274e 100644
+--- a/src/managers/base.ts
++++ b/src/managers/base.ts
+@@ -1,5 +1,6 @@
+ import type { ChameleonREST } from '../rest/index.js'
+ import type { TongueStore } from '../client/store.js'
++import type { Tongue } from '../utils/tongue.js'
+ import type { ChameleonAPIResult } from '../rest/types.js'
+ 
+ export abstract class BaseManager<T extends { id: string }> {
+@@ -17,10 +18,10 @@ export abstract class BaseManager<T extends { id: string }> {
+ 
+     if (!force) {
+ 
+-      const tongue = this.store[this.storeKey] as any
++      const tongue = this.store[this.storeKey] as unknown as Tongue<string, T>
+       const cached = tongue.get(id)
+ 
+-      if (cached) return { ok: true, data: cached as T }
++      if (cached) return { ok: true, data: cached }
+     }
+ 
+     const result = await this.rest.get<unknown>(this.endpoint(id))
+@@ -29,7 +30,7 @@ export abstract class BaseManager<T extends { id: string }> {
+ 
+     const entity = this.build(result.data)
+ 
+-    const tongue = this.store[this.storeKey] as any
++    const tongue = this.store[this.storeKey] as unknown as Tongue<string, T>
+     tongue.set(id, entity)
+ 
+     return { ok: true, data: entity }
+diff --git a/src/managers/channel.ts b/src/managers/channel.ts
+index d175f25..6fef84f 100644
+--- a/src/managers/channel.ts
++++ b/src/managers/channel.ts
+@@ -1,10 +1,77 @@
+ import { BaseManager } from './base.js'
+ import { buildChannel } from '../builders/index.js'
+-import type { Channel } from '../types/channel/index.js'
++import type { Channel, Overwrite } from '../types/channel/index.js'
++import type { ChameleonAPIResult } from '../rest/types.js'
++import { toSnakeCase } from '../utils/object.js'
+ 
+ export class ChannelManager extends BaseManager<Channel> {
+ 
+   protected storeKey = 'channels' as const
+   protected endpoint(id: string) { return `/channels/${id}` }
+   protected build = buildChannel
++
++  async create(guildId: string, payload: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.post<unknown>(`/guilds/${guildId}/channels`, toSnakeCase(payload), headers)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const entity = this.build(result.data as Record<string, unknown>, guildId)
++
++    this.store.channels.set(entity.id, entity)
++
++    return { ok: true, data: entity }
++  }
++
++  async edit(channelId: string, payload: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.patch<unknown>(this.endpoint(channelId), toSnakeCase(payload), headers)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const entity = this.build(result.data as Record<string, unknown>)
++
++    this.store.channels.set(entity.id, entity)
++
++    return { ok: true, data: entity }
++  }
++
++  async delete(channelId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.delete(this.endpoint(channelId), headers)
++
++    if (result.ok) this.store.channels.delete(channelId)
++
++    return result as ChameleonAPIResult<void>
++  }
++
++  async updatePermissions(channelId: string, overwriteId: string, payload: Partial<Overwrite>, reason?: string): Promise<ChameleonAPIResult<void>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    return await this.rest.put(`/channels/${channelId}/permissions/${overwriteId}`, toSnakeCase(payload), headers) as ChameleonAPIResult<void>
++  }
++
++  async deletePermission(channelId: string, overwriteId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    return await this.rest.delete(`/channels/${channelId}/permissions/${overwriteId}`, headers) as ChameleonAPIResult<void>
++  }
+ }
+\ No newline at end of file
+diff --git a/src/managers/collector.ts b/src/managers/collector.ts
+index 082de06..52d7d2e 100644
+--- a/src/managers/collector.ts
++++ b/src/managers/collector.ts
+@@ -1,8 +1,8 @@
+ import type { Client } from '../client/client.js'
+ import type { Message } from '../types/message/index.js'
+-import { ComponentContext } from '../commands/interactions.js'
++import { ComponentContext } from '../components/context.js'
+ import { resolveGuild, resolveChannel, buildUser } from '../builders/index.js'
+-import { COMPONENT_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
++import { INTERACTION_TYPES } from '../utils/constants.js'
+ 
+ export interface AwaitMessagesOptions {
+   filter?: (message: Message) => boolean
+@@ -51,10 +51,10 @@ export class CollectorManager {
+       const cleanup = () => {
+         if (timeoutId) clearTimeout(timeoutId)
+ 
+-        this.client.off('MESSAGE_CREATE', handler as any)
++        this.client.off('MESSAGE_CREATE', handler)
+       }
+ 
+-      this.client.on('MESSAGE_CREATE', handler as any)
++      this.client.on('MESSAGE_CREATE', handler)
+ 
+       if (time > 0) {
+         timeoutId = setTimeout(() => {
+@@ -77,9 +77,10 @@ export class CollectorManager {
+ 
+       let timeoutId: NodeJS.Timeout | null = null
+ 
+-      const handler = (data: { type: 'INTERACTION_CREATE', interaction: any }) => {
++      const handler = (data: import('../events/index.js').ChameleonEvent) => {
+ 
+-        const raw = data.interaction
++        if (data.type !== 'INTERACTION_CREATE') return
++        const raw = data.interaction as Record<string, unknown>
+         
+         if (raw.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
+         if (raw.message?.id !== messageId) return
+@@ -91,15 +92,10 @@ export class CollectorManager {
+           this.client,
+           raw,
+           user,
+-          raw.guild_id ? resolveGuild(raw.guild_id, this.client.cache) : undefined,
+-          raw.channel_id ? resolveChannel(raw.channel_id, this.client.cache) : undefined
++          raw.guild_id ? resolveGuild(raw.guild_id, this.client) : undefined,
++          raw.channel_id ? resolveChannel(raw.channel_id, this.client) : undefined
+         )
+ 
+-        // hydrate values if select menu
+-        if (raw.data.component_type === COMPONENT_TYPES.STRING_SELECT || raw.data.component_type === COMPONENT_TYPES.USER_SELECT || raw.data.component_type === COMPONENT_TYPES.ROLE_SELECT || raw.data.component_type === COMPONENT_TYPES.MENTIONABLE_SELECT || raw.data.component_type === COMPONENT_TYPES.CHANNEL_SELECT) {
+-          (ctx as any)._values = raw.data.values || []
+-        }
+-
+         if (filter && !filter(ctx)) return
+ 
+         cleanup()
+@@ -110,10 +106,10 @@ export class CollectorManager {
+ 
+         if (timeoutId) clearTimeout(timeoutId)
+ 
+-        this.client.off('INTERACTION_CREATE', handler as any)
++        this.client.off('INTERACTION_CREATE', handler)
+       }
+ 
+-      this.client.on('INTERACTION_CREATE', handler as any)
++      this.client.on('INTERACTION_CREATE', handler)
+ 
+       if (time > 0) {
+         timeoutId = setTimeout(() => {
+diff --git a/src/managers/guild.ts b/src/managers/guild.ts
+index 2cbf01d..8edf688 100644
+--- a/src/managers/guild.ts
++++ b/src/managers/guild.ts
+@@ -1,9 +1,12 @@
+ import { BaseManager } from './base.js'
+ import { buildGuild, buildChannel } from '../builders/index.js'
++import { RoleManager } from './role.js'
++import { MemberManager } from './member.js'
+ import { TongueStore } from '../client/store.js'
+ import type { Guild } from '../types/guild/index.js'
+ import type { Channel } from '../types/channel/index.js'
+ import type { ChameleonAPIResult } from '../rest/types.js'
++import { toSnakeCase } from '../utils/object.js'
+ 
+ export class GuildManager extends BaseManager<Guild> {
+ 
+@@ -11,14 +14,22 @@ export class GuildManager extends BaseManager<Guild> {
+   protected endpoint(id: string) { return `/guilds/${id}` }
+   protected build = buildGuild
+ 
++  roles(guildId: string): RoleManager {
++    return new RoleManager(this.rest, this.store, guildId)
++  }
++
++  members(guildId: string): MemberManager {
++    return new MemberManager(this.rest, this.store, guildId)
++  }
++
+   async fetchChannels(guildId: string): Promise<ChameleonAPIResult<Channel[]>> {
+ 
+     const result = await this.rest.get<unknown[]>(`/guilds/${guildId}/channels`)
+-    
+-    if (!result.ok) return result
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
+ 
+     const channels = result.data.map(raw => buildChannel(raw as Record<string, unknown>, guildId))
+-    
++
+     for (const c of channels) {
+       this.store.channels.set(c.id, c)
+     }
+@@ -27,11 +38,11 @@ export class GuildManager extends BaseManager<Guild> {
+   }
+ 
+   async ban(guildId: string, userId: string, options?: { deleteMessageSeconds?: number; reason?: string }): Promise<ChameleonAPIResult<void>> {
+-    
+-    const payload: Record<string, any> = {}
+-    
++
++    const payload: Record<string, unknown> = {}
++
+     if (options?.deleteMessageSeconds !== undefined) payload.delete_message_seconds = options.deleteMessageSeconds
+-    
++
+     const headers: Record<string, string> = {}
+     if (options?.reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(options.reason)
+ 
+@@ -42,7 +53,7 @@ export class GuildManager extends BaseManager<Guild> {
+   async unban(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+ 
+     const headers: Record<string, string> = {}
+-    
++
+     if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+ 
+     const result = await this.rest.delete(`/guilds/${guildId}/bans/${userId}`, headers)
+@@ -52,15 +63,41 @@ export class GuildManager extends BaseManager<Guild> {
+   async kick(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+ 
+     const headers: Record<string, string> = {}
+-    
++
+     if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+ 
+     const result = await this.rest.delete(`/guilds/${guildId}/members/${userId}`, headers)
+-    
++
+     if (result.ok) {
+       this.store.members.delete(TongueStore.memberKey(guildId, userId))
+     }
+-    
++
++    return result as ChameleonAPIResult<void>
++  }
++
++  async edit(guildId: string, payload: Partial<Guild>, reason?: string): Promise<ChameleonAPIResult<Guild>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.patch<unknown>(this.endpoint(guildId), toSnakeCase(payload), headers)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const entity = this.build(result.data as Record<string, unknown>)
++
++    this.store.guilds.set(entity.id, entity)
++
++    return { ok: true, data: entity }
++  }
++
++  async delete(guildId: string): Promise<ChameleonAPIResult<void>> {
++
++    const result = await this.rest.delete(this.endpoint(guildId))
++
++    if (result.ok) this.store.guilds.delete(guildId)
++
+     return result as ChameleonAPIResult<void>
+   }
+ }
+\ No newline at end of file
+diff --git a/src/managers/index.ts b/src/managers/index.ts
+index f89c5d2..1e57eef 100644
+--- a/src/managers/index.ts
++++ b/src/managers/index.ts
+@@ -4,4 +4,5 @@ export { GuildManager } from './guild.js'
+ export { ChannelManager } from './channel.js'
+ export { MemberManager } from './member.js'
+ export { MessageManager } from './message.js'
+-export { CollectorManager } from './collector.js'
+\ No newline at end of file
++export { CollectorManager } from './collector.js'
++export { RoleManager } from './role.js'
+\ No newline at end of file
+diff --git a/src/managers/member.ts b/src/managers/member.ts
+index 39d2604..cf2cd86 100644
+--- a/src/managers/member.ts
++++ b/src/managers/member.ts
+@@ -3,6 +3,7 @@ import { TongueStore } from '../client/store.js'
+ import type { ChameleonAPIResult } from '../rest/types.js'
+ import type { Member } from '../types/guild/index.js'
+ import { buildMember } from '../builders/index.js'
++import { toSnakeCase } from '../utils/object.js'
+ 
+ export class MemberManager {
+ 
+@@ -21,15 +22,32 @@ export class MemberManager {
+     const cacheKey = TongueStore.memberKey(this.guildId, userId)
+ 
+     if (!force) {
+-      
++
+       const cached = this.store.members.get(cacheKey)
+ 
+       if (cached) return { ok: true, data: cached }
+     }
+ 
+     const result = await this.rest.get<unknown>(`/guilds/${this.guildId}/members/${userId}`)
+-    if (!result.ok) return result
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const member = buildMember(result.data as Record<string, unknown>, this.guildId, this.store)
++    this.store.members.set(cacheKey, member)
++
++    return { ok: true, data: member }
++  }
+ 
++  async edit(userId: string, payload: Partial<Member>, reason?: string): Promise<ChameleonAPIResult<Member>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.patch<unknown>(`/guilds/${this.guildId}/members/${userId}`, toSnakeCase(payload), headers)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const cacheKey = TongueStore.memberKey(this.guildId, userId)
+     const member = buildMember(result.data as Record<string, unknown>, this.guildId, this.store)
+     this.store.members.set(cacheKey, member)
+ 
+diff --git a/src/managers/message.ts b/src/managers/message.ts
+index 35510ea..3e2916f 100644
+--- a/src/managers/message.ts
++++ b/src/managers/message.ts
+@@ -1,9 +1,17 @@
+ import type { ChameleonREST } from '../rest/index.js'
+ import type { TongueStore } from '../client/store.js'
+-import { buildMessage } from '../builders/index.js'
+-import type { Message } from '../types/message/index.js'
++import { buildMessage, serializeComponent } from '../builders/index.js'
++import type { Message, Embed } from '../types/message/index.js'
++import type { MessageComponent } from '../types/components/index.js'
+ import type { ChameleonAPIResult } from '../rest/types.js'
+ 
++export type MessageCreateOptions = string | {
++  content?: string
++  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
++  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
++  reply?: { messageId: string, failIfNotExists?: boolean }
++}
++
+ export class MessageManager {
+ 
+   constructor (
+@@ -29,12 +37,26 @@ export class MessageManager {
+     return { ok: true, data: message }
+   }
+ 
+-  async send(channelId: string, payload: string | Record<string, any>): Promise<ChameleonAPIResult<Message>> {
++  async send(channelId: string, payload: MessageCreateOptions): Promise<ChameleonAPIResult<Message>> {
++
++    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
++
++    if (typeof payload === 'object') {
++      if (payload.embeds) {
++        data.embeds = payload.embeds.map(e => (e && typeof (e as { toJSON?(): Record<string, unknown> }).toJSON === 'function' ? (e as { toJSON(): Record<string, unknown> }).toJSON() : e))
++      }
++      if (payload.components) {
++        data.components = payload.components.map(c => serializeComponent(c))
++      }
++      if (payload.reply) {
++        data.message_reference = { message_id: payload.reply.messageId, fail_if_not_exists: payload.reply.failIfNotExists ?? true }
++        delete data.reply
++      }
++    }
+ 
+-    const data = typeof payload === 'string' ? { content: payload } : payload
+     const result = await this.rest.post<unknown>(`/channels/${channelId}/messages`, data)
+ 
+-    if (!result.ok) return result
++    if (!result.ok) return result as ChameleonAPIResult<never>
+     
+     const message = buildMessage(result.data as Record<string, unknown>, this.store)
+ 
+@@ -43,12 +65,22 @@ export class MessageManager {
+     return { ok: true, data: message }
+   }
+ 
+-  async edit(channelId: string, messageId: string, payload: string | Record<string, any>): Promise<ChameleonAPIResult<Message>> {
++  async edit(channelId: string, messageId: string, payload: MessageCreateOptions): Promise<ChameleonAPIResult<Message>> {
+     
+-    const data = typeof payload === 'string' ? { content: payload } : payload
++    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
++
++    if (typeof payload === 'object') {
++      if (payload.embeds) {
++        data.embeds = payload.embeds.map(e => (e && typeof (e as { toJSON?(): Record<string, unknown> }).toJSON === 'function' ? (e as { toJSON(): Record<string, unknown> }).toJSON() : e))
++      }
++      if (payload.components) {
++        data.components = payload.components.map(c => serializeComponent(c))
++      }
++    }
++
+     const result = await this.rest.patch<unknown>(`/channels/${channelId}/messages/${messageId}`, data)
+     
+-    if (!result.ok) return result
++    if (!result.ok) return result as ChameleonAPIResult<never>
+ 
+     const oldMsg = this.store.messages.get(messageId)
+     const message = buildMessage(result.data as Record<string, unknown>, this.store, oldMsg)
+@@ -67,4 +99,35 @@ export class MessageManager {
+     
+     return result as ChameleonAPIResult<void>
+   }
++
++  async list(channelId: string, options?: { limit?: number, before?: string, after?: string, around?: string }): Promise<ChameleonAPIResult<Message[]>> {
++    
++    let url = `/channels/${channelId}/messages`
++    
++    if (options) {
++
++      const params = new URLSearchParams()
++      
++      if (options.limit) params.append('limit', options.limit.toString())
++      if (options.before) params.append('before', options.before)
++      if (options.after) params.append('after', options.after)
++      if (options.around) params.append('around', options.around)
++      
++      const qs = params.toString()
++      
++      if (qs) url += `?${qs}`
++    }
++
++    const result = await this.rest.get<unknown[]>(url)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const messages = (result.data as Record<string, unknown>[]).map(msgData => {
++      const msg = buildMessage(msgData, this.store)
++      this.store.messages.set(msg.id, msg)
++      return msg
++    })
++
++    return { ok: true, data: messages }
++  }
+ }
+\ No newline at end of file
+diff --git a/src/managers/role.ts b/src/managers/role.ts
+new file mode 100644
+index 0000000..5f9f83d
+--- /dev/null
++++ b/src/managers/role.ts
+@@ -0,0 +1,99 @@
++import type { ChameleonREST } from '../rest/index.js'
++import { TongueStore } from '../client/store.js'
++import type { ChameleonAPIResult } from '../rest/types.js'
++import type { Role } from '../types/guild/index.js'
++import { buildRole } from '../builders/index.js'
++import { toSnakeCase } from '../utils/object.js'
++
++export class RoleManager {
++
++  constructor (
++    protected rest: ChameleonREST,
++    protected store: TongueStore,
++    protected guildId: string
++  ) {}
++
++  async fetch(roleId: string, force = false): Promise<ChameleonAPIResult<Role>> {
++
++    if (!force) {
++
++      const cached = this.store.roles.get(roleId)
++
++      if (cached) return { ok: true, data: cached }
++    }
++
++    const result = await this.rest.get<unknown[]>(`/guilds/${this.guildId}/roles`)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const roles = result.data.map(raw => buildRole(raw as Record<string, unknown>))
++
++    for (const r of roles) {
++      this.store.roles.set(r.id, r)
++    }
++
++    const target = roles.find(r => r.id === roleId)
++
++    if (target) return { ok: true, data: target }
++
++    return { ok: false, status: 404, message: 'Role not found' } as ChameleonAPIResult<never>
++  }
++
++  async list(): Promise<ChameleonAPIResult<Role[]>> {
++
++    const result = await this.rest.get<unknown[]>(`/guilds/${this.guildId}/roles`)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const roles = result.data.map(raw => buildRole(raw as Record<string, unknown>))
++
++    for (const r of roles) {
++      this.store.roles.set(r.id, r)
++    }
++
++    return { ok: true, data: roles }
++  }
++
++  async create(payload: Partial<Role>, reason?: string): Promise<ChameleonAPIResult<Role>> {
++
++    const headers: Record<string, string> = {}
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.post<unknown>(`/guilds/${this.guildId}/roles`, toSnakeCase(payload), headers)
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const role = buildRole(result.data as Record<string, unknown>)
++    this.store.roles.set(role.id, role)
++
++    return { ok: true, data: role }
++  }
++
++  async edit(roleId: string, payload: Partial<Role>, reason?: string): Promise<ChameleonAPIResult<Role>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.patch<unknown>(`/guilds/${this.guildId}/roles/${roleId}`, toSnakeCase(payload), headers)
++
++    if (!result.ok) return result as ChameleonAPIResult<never>
++
++    const role = buildRole(result.data as Record<string, unknown>)
++    this.store.roles.set(role.id, role)
++
++    return { ok: true, data: role }
++  }
++
++  async delete(roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
++
++    const headers: Record<string, string> = {}
++
++    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
++
++    const result = await this.rest.delete(`/guilds/${this.guildId}/roles/${roleId}`, headers)
++
++    if (result.ok) this.store.roles.delete(roleId)
++
++    return result as ChameleonAPIResult<void>
++  }
++}
+\ No newline at end of file
+diff --git a/src/managers/user.ts b/src/managers/user.ts
+index 599fcdc..cb7c7bb 100644
+--- a/src/managers/user.ts
++++ b/src/managers/user.ts
+@@ -7,4 +7,13 @@ export class UserManager extends BaseManager<User> {
+   protected storeKey = 'users' as const
+   protected endpoint(id: string) { return `/users/${id}` }
+   protected build = buildUser
++
++  async createDM(userId: string): Promise<import('../rest/types.js').ChameleonAPIResult<import('../types/channel/index.js').Channel>> {
++    
++    const result = await this.rest.post<unknown>('/users/@me/channels', { recipient_id: userId })
++    
++    if (!result.ok) return result as import('../rest/types.js').ChameleonAPIResult<never>
++    
++    return { ok: true, data: (await import('../builders/index.js')).buildChannel(result.data as Record<string, unknown>) }
++  }
+ }
+\ No newline at end of file
+diff --git a/src/types/automod/index.ts b/src/types/automod/index.ts
+index 31cf066..ab3c6d0 100644
+--- a/src/types/automod/index.ts
++++ b/src/types/automod/index.ts
+@@ -1,5 +1,3 @@
+-import type { User } from '../user/index.js'
+-
+ export const AutoModerationEventType = {
+   MESSAGE_SEND: 1,
+   MEMBER_UPDATE: 2
+diff --git a/src/utils/object.ts b/src/utils/object.ts
+new file mode 100644
+index 0000000..ef4a652
+--- /dev/null
++++ b/src/utils/object.ts
+@@ -0,0 +1,23 @@
++export function toSnakeCase(obj: unknown): unknown {
++
++  if (Array.isArray(obj)) {
++    
++    return obj.map(v => toSnakeCase(v))
++    
++  } else if (obj !== null && typeof obj === 'object') {
++    
++    if (typeof (obj as Record<string, unknown>).toJSON === 'function') {
++      return (obj as { toJSON: () => unknown }).toJSON()
++    }
++    
++    return Object.keys(obj).reduce((result, key) => {
++
++      const snakeKey = key.replace(/([A-Z])/g, "_$1").toLowerCase()
++
++      result[snakeKey] = toSnakeCase((obj as Record<string, unknown>)[key])
++      
++      return result
++    }, {} as Record<string, unknown>)
++  }
++  return obj
++}
+\ No newline at end of file
+diff --git a/tests/builders.test.ts b/tests/builders.test.ts
+index 83a12b3..e42b113 100644
+--- a/tests/builders.test.ts
++++ b/tests/builders.test.ts
+@@ -56,10 +56,10 @@ describe('SelectMenuBuilder', () => {
+     const json = sel.toJSON()
+ 
+     expect(json.type).toBe(ComponentType.STRING_SELECT)
+-    expect(json.customId).toBe('sel')
++    expect(json.custom_id).toBe('sel')
+     expect(json.placeholder).toBe('Pick')
+-    expect(json.minValues).toBe(1)
+-    expect(json.maxValues).toBe(3)
++    expect(json.min_values).toBe(1)
++    expect(json.max_values).toBe(3)
+     expect(json.disabled).toBe(true)
+     expect(json.options).toHaveLength(3)
+   })
+@@ -110,8 +110,8 @@ describe('ActionRowBuilder', () => {
+ 
+     expect(built.type).toBe(ComponentType.ACTION_ROW)
+     expect(built.components).toHaveLength(2)
+-    expect(built.components?.[0]?.customId).toBe('b1')
+-    expect(built.components?.[1]?.customId).toBe('b2')
++    expect((built.components?.[0] as Record<string, unknown>)?.customId).toBe('b1')
++    expect((built.components?.[1] as Record<string, unknown>)?.customId).toBe('b2')
+ 
+     const json = row.toJSON()
+ 
+diff --git a/tests/components.test.ts b/tests/components.test.ts
+index 157fb37..a4083e6 100644
+--- a/tests/components.test.ts
++++ b/tests/components.test.ts
+@@ -192,9 +192,9 @@ describe('ActionRow', () => {
+ 
+     expect(row.type).toBe(COMPONENT_TYPES.ACTION_ROW)
+     expect(row.components).toHaveLength(1)
+-    expect(row.components[0].type).toBe(COMPONENT_TYPES.BUTTON)
+-    expect(row.components[0].label).toBe('OK')
+-    expect(row.components[0].style).toBe(3) // success
++    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.BUTTON)
++    expect((row.components[0] as Record<string, unknown>).label).toBe('OK')
++    expect((row.components[0] as Record<string, unknown>).style).toBe(3)
+   })
+ 
+   it('should wrap a string select into an action row', () => {
+@@ -206,8 +206,8 @@ describe('ActionRow', () => {
+     })
+ 
+     const row = ActionRow.of(sel)
+-    expect(row.components[0].type).toBe(COMPONENT_TYPES.STRING_SELECT)
+-    expect(row.components[0].options).toHaveLength(1)
++    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.STRING_SELECT)
++    expect((row.components[0] as Record<string, unknown>).options).toHaveLength(1)
+   })
+ 
+   it('should wrap user/role/channel/mentionable selects', () => {
+@@ -217,10 +217,10 @@ describe('ActionRow', () => {
+     const channel = defineChannelSelect({ customId: 'ch', execute: async () => {} })
+     const mentionable = defineMentionableSelect({ customId: 'm', execute: async () => {} })
+ 
+-    expect(ActionRow.of(user).components[0].type).toBe(COMPONENT_TYPES.USER_SELECT)
+-    expect(ActionRow.of(role).components[0].type).toBe(COMPONENT_TYPES.ROLE_SELECT)
+-    expect(ActionRow.of(channel).components[0].type).toBe(COMPONENT_TYPES.CHANNEL_SELECT)
+-    expect(ActionRow.of(mentionable).components[0].type).toBe(COMPONENT_TYPES.MENTIONABLE_SELECT)
++    expect((ActionRow.of(user).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.USER_SELECT)
++    expect((ActionRow.of(role).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.ROLE_SELECT)
++    expect((ActionRow.of(channel).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.CHANNEL_SELECT)
++    expect((ActionRow.of(mentionable).components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.MENTIONABLE_SELECT)
+   })
+ 
+   it('should wrap text input fields', () => {
+@@ -228,9 +228,9 @@ describe('ActionRow', () => {
+     const f = field.short('name', 'Your Name')
+     const row = ActionRow.of(f)
+ 
+-    expect(row.components[0].type).toBe(COMPONENT_TYPES.TEXT_INPUT)
+-    expect(row.components[0].style).toBe(TEXT_INPUT_STYLES.SHORT)
+-    expect(row.components[0].label).toBe('Your Name')
++    expect((row.components[0] as Record<string, unknown>).type).toBe(COMPONENT_TYPES.TEXT_INPUT)
++    expect((row.components[0] as Record<string, unknown>).style).toBe(TEXT_INPUT_STYLES.SHORT)
++    expect((row.components[0] as Record<string, unknown>).label).toBe('Your Name')
+   })
+ 
+   it('should strip undefined keys from output', () => {
+@@ -243,7 +243,7 @@ describe('ActionRow', () => {
+     })
+ 
+     const row = ActionRow.of(btn)
+-    const comp = row.components[0]
++    const comp = row.components[0] as Record<string, unknown>
+ 
+     expect(Object.keys(comp)).not.toContain('url')
+     expect(Object.keys(comp)).not.toContain('emoji')
+@@ -255,7 +255,7 @@ describe('ActionRow', () => {
+     const raw = { type: 999, custom_id: 'raw' }
+     const row = ActionRow.of(raw)
+ 
+-    expect(row.components[0].type).toBe(999)
++    expect((row.components[0] as Record<string, unknown>).type).toBe(999)
+   })
+ 
+   it('should handle multiple buttons in one row', () => {
+@@ -267,8 +267,8 @@ describe('ActionRow', () => {
+     const row = ActionRow.of(a, b, c)
+     
+     expect(row.components).toHaveLength(3)
+-    expect(row.components[0].style).toBe(1) // primary
+-    expect(row.components[1].style).toBe(4) // danger
+-    expect(row.components[2].style).toBe(2) // secondary
++    expect((row.components[0] as Record<string, unknown>).style).toBe(1) // primary
++    expect((row.components[1] as Record<string, unknown>).style).toBe(4) // danger
++    expect((row.components[2] as Record<string, unknown>).style).toBe(2) // secondary
+   })
+ })
+\ No newline at end of file
+diff --git a/tests/discord.test.ts b/tests/discord.test.ts
+new file mode 100644
+index 0000000..e9d4aa9
+--- /dev/null
++++ b/tests/discord.test.ts
+@@ -0,0 +1,151 @@
++import { describe, it, expect, vi } from 'vitest'
++import { toSnakeCase } from '../src/utils/object.ts'
++import { ChameleonREST } from '../src/rest/index.ts'
++
++describe('Discord API Compliance', () => {
++
++  describe('Payload Serialization (toSnakeCase)', () => {
++
++    it('should recursively convert camelCase keys to snake_case', () => {
++      
++      const payload = {
++        customId: 'my_button',
++        maxValues: 5,
++        channelId: '123',
++        embeds: [
++          {
++            titleText: 'Hello',
++            authorName: 'impulsedoes'
++          }
++        ]
++      }
++
++      const serialized = toSnakeCase(payload) as unknown
++
++      expect(serialized.custom_id).toBe('my_button')
++      expect(serialized.max_values).toBe(5)
++      expect(serialized.channel_id).toBe('123')
++      
++      expect(serialized.embeds[0].title_text).toBe('Hello')
++      expect(serialized.embeds[0].author_name).toBe('impulsedoes')
++
++      expect(serialized.customId).toBeUndefined()
++      expect(serialized.maxValues).toBeUndefined()
++    })
++
++    it('should correctly handle nulls and primitives', () => {
++      expect(toSnakeCase(null)).toBe(null)
++      expect(toSnakeCase('string')).toBe('string')
++      expect(toSnakeCase(123)).toBe(123)
++      expect(toSnakeCase(true)).toBe(true)
++    })
++
++    it('should respect custom toJSON methods and not deep transform them', () => {
++      
++      const component = {
++        customId: 'btn',
++        toJSON() {
++          return { type: 2, custom_id: 'btn_overridden' }
++        }
++      }
++
++      const payload = {
++        components: [component]
++      }
++
++      const serialized = toSnakeCase(payload) as unknown
++
++      expect(serialized.components[0].type).toBe(2)
++      expect(serialized.components[0].custom_id).toBe('btn_overridden')
++      // Shouldn't see custom_id: 'btn' from the raw component properties
++    })
++  })
++
++  describe('REST Client Headers & URLs', () => {
++
++    it('should inject required Discord User-Agent and Authorization headers', async () => {
++      
++      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
++        status: 200,
++        ok: true,
++        text: async () => JSON.stringify({ id: '123' })
++      } as Response)
++
++      const rest = new ChameleonREST({ token: 'test_token', version: 10 })
++      
++      await rest.get('/users/@me')
++
++      expect(fetchSpy).toHaveBeenCalledTimes(1)
++      
++      const [url, init] = fetchSpy.mock.calls[0]
++      
++      expect(url).toBe('https://discord.com/api/v10/users/@me')
++      
++      const headers = init?.headers as Record<string, string>
++      expect(headers['Authorization']).toBe('Bot test_token')
++      expect(headers['User-Agent']).toMatch(/^Chameleon \(https:\/\/github.com\/impulsedoes\/chameleon\)$/)
++
++      fetchSpy.mockRestore()
++    })
++
++    it('should prepend a slash to the endpoint if missing', async () => {
++      
++      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
++        status: 200,
++        ok: true,
++        text: async () => JSON.stringify({})
++      } as Response)
++
++      const rest = new ChameleonREST({ token: 'test_token', version: 9 })
++      
++      await rest.post('channels/123/messages', { content: 'hello' })
++
++      const [url] = fetchSpy.mock.calls[0]
++      expect(url).toBe('https://discord.com/api/v9/channels/123/messages')
++
++      fetchSpy.mockRestore()
++    })
++
++    it('should serialize JSON body and set Content-Type appropriately', async () => {
++
++      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
++        status: 200,
++        ok: true,
++        text: async () => JSON.stringify({})
++      } as Response)
++
++      const rest = new ChameleonREST({ token: 'test' })
++      
++      await rest.post('/test', { foo: 'bar' })
++
++      const [, init] = fetchSpy.mock.calls[0]
++      
++      const headers = init?.headers as Record<string, string>
++      expect(headers['Content-Type']).toBe('application/json')
++      
++      expect(init?.body).toBe(JSON.stringify({ foo: 'bar' }))
++
++      fetchSpy.mockRestore()
++    })
++
++    it('should include audit log reasons in headers when provided', async () => {
++
++      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
++        status: 200,
++        ok: true,
++        text: async () => JSON.stringify({})
++      } as Response)
++
++      const rest = new ChameleonREST({ token: 'test' })
++      
++      await rest.delete('/channels/123', { 'X-Audit-Log-Reason': encodeURIComponent('Because I can') })
++
++      const [, init] = fetchSpy.mock.calls[0]
++      
++      const headers = init?.headers as Record<string, string>
++      expect(headers['X-Audit-Log-Reason']).toBe('Because%20I%20can')
++
++      fetchSpy.mockRestore()
++    })
++  })
++})
+\ No newline at end of file
+diff --git a/tests/embed.test.ts b/tests/embed.test.ts
+index 7701a24..44b67ac 100644
+--- a/tests/embed.test.ts
++++ b/tests/embed.test.ts
+@@ -138,15 +138,15 @@ describe('EmbedBuilder', () => {
+       title: 'From API',
+       description: 'Desc',
+       color: 0x00FF00,
+-      author: { name: 'Auth', icon_url: 'https://icon.png' },
+-      footer: { text: 'Foot', icon_url: 'https://foot.png' },
+-      image: { url: 'https://img.png', proxy_url: 'https://proxy.png', width: 100, height: 200 },
++      author: { name: 'Auth', iconUrl: 'https://icon.png' },
++      footer: { text: 'Foot', iconUrl: 'https://foot.png' },
++      image: { url: 'https://img.png', proxyUrl: 'https://proxy.png', width: 100, height: 200 },
+       thumbnail: { url: 'https://th.png' },
+       fields: [{ name: 'F', value: 'V', inline: true }],
+       timestamp: '2025-06-01T00:00:00.000Z'
+     }
+ 
+-    const embed = new EmbedBuilder(raw as any)
++    const embed = new EmbedBuilder(raw as unknown)
+     const json = embed.toJSON()
+ 
+     expect(json.title).toBe('From API')
+diff --git a/tests/entities.test.ts b/tests/entities.test.ts
+index 7903fba..1791747 100644
+--- a/tests/entities.test.ts
++++ b/tests/entities.test.ts
+@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
+ import { TEST_ENTITIES } from './mock/dataTest.js'
+ import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild } from '../src/builders/index.ts'
+ import { TongueStore } from '../src/client/store.ts'
++import type { Client } from '../src/client/client.ts'
+ import type { Channel } from '../src/types/channel/index.ts'
+ import type { Guild, Role } from '../src/types/guild/index.ts'
+ import type { User } from '../src/types/user/index.ts'
+@@ -66,23 +67,24 @@ describe('Chameleon Entity Resolvers', () => {
+   it('should resolve from cache or fallback to ID', () => {
+ 
+     const cache = new TongueStore()
++    const client = { cache } as unknown as Client
+     
+     cache.channels.set('ch1', { id: 'ch1', type: 0 } as unknown as Channel)
+     cache.guilds.set('g1', { id: 'g1', name: 'g' } as unknown as Guild)
+     cache.users.set('u1', { id: 'u1', username: 'u' } as unknown as User)
+     cache.roles.set('r1', { id: 'r1', name: 'r' } as unknown as Role)
+ 
+-    expect(resolveChannel('ch1', cache)).toHaveProperty('type', 0)
+-    expect(resolveChannel('ch2', cache)).toEqual({ id: 'ch2' })
++    expect(resolveChannel('ch1', client)).toHaveProperty('type', 0)
++    expect(resolveChannel('ch2', client)).toEqual(expect.objectContaining({ id: 'ch2' }))
+ 
+-    expect(resolveGuild('g1', cache)).toHaveProperty('name', 'g')
+-    expect(resolveGuild('g2', cache)).toEqual({ id: 'g2' })
++    expect(resolveGuild('g1', client)).toHaveProperty('name', 'g')
++    expect(resolveGuild('g2', client)).toEqual(expect.objectContaining({ id: 'g2' }))
+ 
+-    expect(resolveUser('u1', cache)).toHaveProperty('username', 'u')
+-    expect(resolveUser('u2', cache)).toEqual({ id: 'u2' })
++    expect(resolveUser('u1', client)).toHaveProperty('username', 'u')
++    expect(resolveUser('u2', client)).toEqual(expect.objectContaining({ id: 'u2' }))
+ 
+-    expect(resolveRole('r1', cache)).toHaveProperty('name', 'r')
+-    expect(resolveRole('r2', cache)).toEqual({ id: 'r2' })
++    expect(resolveRole('r1', client)).toHaveProperty('name', 'r')
++    expect(resolveRole('r2', client)).toEqual(expect.objectContaining({ id: 'r2' }))
+   })
+ })
+ 
+diff --git a/tests/managers.component.test.ts b/tests/managers.component.test.ts
+index 5ba51f2..87960ec 100644
+--- a/tests/managers.component.test.ts
++++ b/tests/managers.component.test.ts
+@@ -67,7 +67,7 @@ describe('ComponentManager', () => {
+     const client = new Client({ token: 'test', intents: [] })
+     const manager = new ComponentManager(client)
+     
+-    let executedCtx: ComponentContext | undefined
++    let executedCtx: ComponentContext<import('../src/types/user/index.ts').User[]> | undefined
+     
+     const sel = defineUserSelect({
+       customId: 'u_sel',
+@@ -75,7 +75,7 @@ describe('ComponentManager', () => {
+         executedCtx = ctx
+       }
+     })
+-    manager.register(sel)
++    manager.register(sel as unknown)
+ 
+     const rawInteraction = {
+       data: {
+@@ -99,8 +99,8 @@ describe('ComponentManager', () => {
+     expect(executedCtx).toBeDefined()
+     // Test values resolution mapping
+     expect(executedCtx?.values).toHaveLength(1)
+-    expect(executedCtx?.values[0].id).toBe('target1')
+-    expect(executedCtx?.values[0].username).toBe('jane')
++    expect(executedCtx?.values[0]?.id).toBe('target1')
++    expect(executedCtx?.values[0]?.username).toBe('jane')
+     
+     // Test that the user was hydrated into cache
+     expect(client.cache.users.has('target1')).toBe(true)
+@@ -111,7 +111,7 @@ describe('ComponentManager', () => {
+     const client = new Client({ token: 'test', intents: [] })
+     const manager = new ComponentManager(client)
+     
+-    let executedCtx: ComponentContext | undefined
++    let executedCtx: ComponentContext<Partial<import('../src/types/channel/index.ts').Channel>[]> | undefined
+     
+     const sel = defineChannelSelect({
+       customId: 'c_sel',
+@@ -119,7 +119,7 @@ describe('ComponentManager', () => {
+         executedCtx = ctx
+       }
+     })
+-    manager.register(sel)
++    manager.register(sel as unknown)
+ 
+     const rawInteraction = {
+       data: {
+@@ -138,9 +138,9 @@ describe('ComponentManager', () => {
+ 
+     expect(executedCtx).toBeDefined()
+     expect(executedCtx?.values).toHaveLength(2)
+-    expect(executedCtx?.values[0].id).toBe('c1')
+-    expect(executedCtx?.values[0].name).toBe('general')
+-    expect(executedCtx?.values[1].id).toBe('unknown_channel') // Fallback to id-only object
++    expect(executedCtx?.values[0]?.id).toBe('c1')
++    expect(executedCtx?.values[0]?.name).toBe('general')
++    expect(executedCtx?.values[1]?.id).toBe('unknown_channel') // Fallback to id-only object
+   })
+ 
+   it('should catch handler errors', async () => {
+diff --git a/tests/managers.guild.test.ts b/tests/managers.guild.test.ts
+index 8c33c9d..2b9ab6b 100644
+--- a/tests/managers.guild.test.ts
++++ b/tests/managers.guild.test.ts
+@@ -77,7 +77,7 @@ describe('GuildManager', () => {
+     manager['rest'].delete = vi.fn().mockResolvedValue({ ok: true })
+     
+     // Add fake member to cache to test deletion
+-    client.cache.members.set('g1_u1', {} as any)
++    client.cache.members.set('g1_u1', {} as unknown)
+ 
+     const res = await manager.kick('g1', 'u1', 'nga')
+ 
+diff --git a/tests/managers.test.ts b/tests/managers.test.ts
+index a93309b..ef63a4c 100644
+--- a/tests/managers.test.ts
++++ b/tests/managers.test.ts
+@@ -13,7 +13,7 @@ function mockRest(response: unknown) {
+     put: vi.fn(),
+     patch: vi.fn(),
+     delete: vi.fn(),
+-  } as any
++  } as unknown as import('../src/rest/index.js').ChameleonREST
+ }
+ 
+ describe('Managers', () => {
+@@ -103,7 +103,7 @@ describe('Managers', () => {
+     const store = new TongueStore()
+     const rest = {
+       get: vi.fn().mockResolvedValue({ ok: false, status: 404, message: 'Unknown User' }),
+-    } as any
++    } as unknown as import('../src/rest/index.js').ChameleonREST
+ 
+     const users = new UserManager(rest, store)
+     const result = await users.fetch('999')

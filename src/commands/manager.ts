@@ -244,7 +244,7 @@ export class CommandManager {
 
     if (targetExecute) {
       try {
-        await targetExecute(ctx as unknown)
+        await (targetExecute as (ctx: CommandContext<Record<string, unknown>>) => void | Promise<void>)(ctx)
       } catch (err) {
         console.error(`[Chameleon] Error executing command ${name}:`, err)
       }

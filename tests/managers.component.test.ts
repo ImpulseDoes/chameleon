@@ -75,7 +75,7 @@ describe('ComponentManager', () => {
         executedCtx = ctx
       }
     })
-    manager.register(sel as unknown)
+    manager.register(sel as unknown as import('../src/commands/manager.ts').ComponentHandler)
 
     const rawInteraction = {
       data: {
@@ -119,7 +119,7 @@ describe('ComponentManager', () => {
         executedCtx = ctx
       }
     })
-    manager.register(sel as unknown)
+    manager.register(sel as unknown as import('../src/commands/manager.ts').ComponentHandler)
 
     const rawInteraction = {
       data: {

@@ -110,8 +110,8 @@ describe('ActionRowBuilder', () => {
 
     expect(built.type).toBe(ComponentType.ACTION_ROW)
     expect(built.components).toHaveLength(2)
-    expect((built.components?.[0] as Record<string, unknown>)?.customId).toBe('b1')
-    expect((built.components?.[1] as Record<string, unknown>)?.customId).toBe('b2')
+    expect((built.components?.[0] as unknown as Record<string, unknown>)?.customId).toBe('b1')
+    expect((built.components?.[1] as unknown as Record<string, unknown>)?.customId).toBe('b2')
 
     const json = row.toJSON()
 

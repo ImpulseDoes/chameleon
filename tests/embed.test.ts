@@ -146,7 +146,7 @@ describe('EmbedBuilder', () => {
       timestamp: '2025-06-01T00:00:00.000Z'
     }
 
-    const embed = new EmbedBuilder(raw as unknown)
+    const embed = new EmbedBuilder(raw as unknown as Partial<import('../src/types/message/index.ts').Embed>)
     const json = embed.toJSON()
 
     expect(json.title).toBe('From API')

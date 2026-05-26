@@ -65,12 +65,12 @@ describe('defineCommand', () => {
           },
           execute: async () => {}
         })
-      }
+      } as unknown as Record<string, ReturnType<typeof defineSubcommand>>
     })
 
     expect(cmd.subcommands).toBeDefined()
-    expect(cmd.subcommands!.get.description).toBe('Get a config value')
-    expect(cmd.subcommands!.set.options!.value.required).toBe(true)
+    expect(cmd.subcommands!.get!.description).toBe('Get a config value')
+    expect(cmd.subcommands!.set!.options!.value!.required).toBe(true)
   })
 })
 
