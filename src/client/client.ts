@@ -8,7 +8,7 @@ import { INTERACTION_TYPES } from '../utils/constants.ts'
 import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
-import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager } from '../managers/index.js'
+import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager } from '../managers/index.js'
 import type { ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
 
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
@@ -39,6 +39,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public entitlements: EntitlementManager
   public stageInstances: StageInstanceManager
   public templates: TemplateManager
+  public application: ApplicationManager
+  public soundboard: SoundboardManager
 
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
   private middlewares: MiddlewareFn[] = []
@@ -67,8 +69,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.entitlements = new EntitlementManager(this.rest, this.cache)
     this.stageInstances = new StageInstanceManager(this.rest, this.cache)
     this.templates = new TemplateManager(this.rest)
+    this.application = new ApplicationManager(this.rest, this)
+    this.soundboard = new SoundboardManager(this.rest)
 
-    // detect sharding from environment if 'auto'
+    this.gateway = new ChameleonGateway({ token: this.token, intents: this.intents })
     let shards: number[] = [0]
     let totalShards = 1
 
