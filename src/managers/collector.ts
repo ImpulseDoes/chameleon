@@ -4,16 +4,7 @@ import { ComponentContext } from '../components/context.js'
 import { resolveGuild, resolveChannel, buildUser } from '../builders/index.js'
 import { INTERACTION_TYPES } from '../utils/constants.js'
 
-export interface AwaitMessagesOptions {
-  filter?: (message: Message) => boolean
-  max?: number
-  time?: number
-}
-
-export interface AwaitComponentOptions {
-  filter?: (ctx: ComponentContext) => boolean
-  time?: number
-}
+import type { AwaitMessagesOptions, AwaitComponentOptions } from '../types/client/index.js'
 
 export class CollectorManager {
 

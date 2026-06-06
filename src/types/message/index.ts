@@ -5,6 +5,8 @@ import type { Emoji, Sticker, StickerItem } from '../expressions/index.js'
 import type { Application } from '../application/index.js'
 import type { MessageComponent } from '../components/index.js'
 import type { MessageInteraction, ResolvedData } from '../interaction/index.js'
+import type { AttachmentBuilder } from '../../builders/attachment.js'
+
 export interface ChannelMention {
   id: string
   guildId: string
@@ -163,7 +165,7 @@ export interface PollMedia {
 }
 
 export interface PollAnswer {
-  answerId: number
+  answerId?: number
   pollMedia: PollMedia
 }
 
@@ -190,6 +192,7 @@ export interface Poll {
 export interface PollCreateRequest {
   question: PollMedia
   answers: PollAnswer[]
+  /** In hours */
   duration?: number
   allowMultiselect?: boolean
   layoutType?: number
@@ -240,6 +243,34 @@ export interface Message {
   poll?: Poll
   call?: MessageCall
   sharedClientTheme?: SharedClientTheme
+}
+
+export interface AttachmentData {
+  name: string
+  data: Buffer | Uint8Array
+  description?: string
+  contentType?: string
+}
+
+export type MessageCreateOptions = string | {
+  content?: string
+  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  reply?: { messageId: string, failIfNotExists?: boolean }
+  files?: AttachmentBuilder[]
+  poll?: PollCreateRequest
+}
+
+export type WebhookMessageCreateOptions = string | {
+  content?: string
+  username?: string
+  avatarUrl?: string
+  tts?: boolean
+  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  threadName?: string
+  files?: AttachmentBuilder[]
+  poll?: PollCreateRequest
 }
 
 export const MessageType = {
@@ -327,3 +358,10 @@ export const AttachmentFlag = {
   IS_SPOILER: 1 << 3,
   IS_ANIMATED: 1 << 5
 } as const
+
+export interface AttachmentData {
+  name: string
+  data: Buffer | Uint8Array
+  description?: string
+  contentType?: string
+}

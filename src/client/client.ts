@@ -1,7 +1,6 @@
-import { TongueStore, type StoreOptions } from './store.ts'
+import { TongueStore } from './store.ts'
 import { ChameleonREST } from '../rest/index.ts'
 import { ChameleonGateway, type GatewayPayload } from '../gateway/index.ts'
-import type { ChameleonEvent } from '../events/index.ts'
 import type { User } from '../types/user/index.ts'
 import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
@@ -9,23 +8,9 @@ import { INTERACTION_TYPES } from '../utils/constants.ts'
 import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
-import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager } from '../managers/index.js'
+import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager } from '../managers/index.js'
+import type { ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
 
-export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
-  token: string
-  intents: TIntents
-  largeThreshold?: number
-  sharding?: 'auto' | { shards: number[]; total: number }
-  cluster?: boolean
-  cache?: StoreOptions
-  debug?: boolean
-}
-
-type EventMap = {
-  [K in ChameleonEvent['type']]: Extract<ChameleonEvent, { type: K }>
-}
-
-export type MiddlewareFn = (event: ChameleonEvent, next: () => void) => void | Promise<void>
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
 
   public token: string | undefined
@@ -49,6 +34,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public collectors: CollectorManager
   public webhooks: WebhookManager
   public invites: InviteManager
+  public autoMod: AutoModerationManager
+  public scheduledEvents: ScheduledEventManager
+  public entitlements: EntitlementManager
+  public stageInstances: StageInstanceManager
+  public templates: TemplateManager
 
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
   private middlewares: MiddlewareFn[] = []
@@ -72,6 +62,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.collectors = new CollectorManager(this)
     this.webhooks = new WebhookManager(this.rest, this.cache)
     this.invites = new InviteManager(this.rest)
+    this.autoMod = new AutoModerationManager(this.rest, this.cache)
+    this.scheduledEvents = new ScheduledEventManager(this.rest, this.cache)
+    this.entitlements = new EntitlementManager(this.rest, this.cache)
+    this.stageInstances = new StageInstanceManager(this.rest, this.cache)
+    this.templates = new TemplateManager(this.rest)
 
     // detect sharding from environment if 'auto'
     let shards: number[] = [0]

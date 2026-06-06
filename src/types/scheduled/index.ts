@@ -39,3 +39,9 @@ export interface GuildScheduledEvent {
   userCount?: number
   image?: string | null
 }
+
+export interface GuildScheduledEventUser {
+  guildScheduledEventId: string
+  user: User
+  member?: unknown
+}

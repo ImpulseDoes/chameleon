@@ -1,7 +1,10 @@
 import { BaseManager } from './base.js'
-import { buildChannel, buildInvite } from '../builders/index.js'
+import { buildChannel, buildInvite, serializeComponent } from '../builders/index.js'
+import type { AttachmentBuilder } from '../builders/attachment.js'
 import type { Channel, Overwrite } from '../types/channel/index.js'
 import type { Invite } from '../types/invite/index.js'
+import type { Embed } from '../types/message/index.js'
+import type { MessageComponent } from '../types/components/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
 
@@ -182,5 +185,60 @@ export class ChannelManager extends BaseManager<Channel> {
     })
     
     return { ok: true, data: { threads, members: data.members } }
+  }
+
+  async createForumThread(channelId: string, options: {
+    name: string
+    autoArchiveDuration?: number
+    rateLimitPerUser?: number
+    appliedTags?: string[]
+    message: {
+      content?: string
+      embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+      components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+      files?: AttachmentBuilder[]
+    }
+  }, reason?: string): Promise<ChameleonAPIResult<Channel>> {
+
+    const headers: Record<string, string> = {}
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const messagePayload: Record<string, unknown> = {}
+
+    if (options.message.content) messagePayload.content = options.message.content
+    if (options.message.embeds) {
+      messagePayload.embeds = options.message.embeds.map(e => 
+        (e && typeof (e as { toJSON?(): Record<string, unknown> }).toJSON === 'function' 
+          ? (e as { toJSON(): Record<string, unknown> }).toJSON() 
+          : e)
+      )
+    }
+    
+    if (options.message.components) {
+      messagePayload.components = options.message.components.map(c => serializeComponent(c))
+    }
+
+    const payload: Record<string, unknown> = {
+      name: options.name,
+      message: messagePayload,
+      ...(options.autoArchiveDuration !== undefined ? { auto_archive_duration: options.autoArchiveDuration } : {}),
+      ...(options.rateLimitPerUser !== undefined ? { rate_limit_per_user: options.rateLimitPerUser } : {}),
+      ...(options.appliedTags ? { applied_tags: options.appliedTags } : {}),
+    }
+
+    let result: ChameleonAPIResult<unknown>
+
+    if (options.message.files && options.message.files.length > 0) {
+      result = await this.rest.requestWithFiles<unknown>('POST', `/channels/${channelId}/threads`, payload, options.message.files, headers)
+    } else {
+      result = await this.rest.post<unknown>(`/channels/${channelId}/threads`, payload, headers)
+    }
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const channel = this.build(result.data as Record<string, unknown>)
+    this.store.channels.set(channel.id, channel)
+
+    return { ok: true, data: channel }
   }
 }

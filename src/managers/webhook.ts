@@ -2,20 +2,9 @@ import type { ChameleonREST } from '../rest/index.js'
 import { buildWebhook, serializeComponent, buildMessage } from '../builders/index.js'
 import type { TongueStore } from '../client/store.js'
 import type { Webhook } from '../types/webhook/index.js'
-import type { Message, Embed } from '../types/message/index.js'
-import type { MessageComponent } from '../types/components/index.js'
+import type { Message, WebhookMessageCreateOptions } from '../types/message/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
-
-export type WebhookMessageCreateOptions = string | {
-  content?: string
-  username?: string
-  avatarUrl?: string
-  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
-  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
-  threadName?: string
-  appliedTags?: string[]
-}
 
 export class WebhookManager {
 

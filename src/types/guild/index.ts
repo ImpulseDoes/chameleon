@@ -68,6 +68,20 @@ export interface Guild {
   large?: boolean // added by chameleon
 }
 
+export interface GuildTemplate {
+  code: string
+  name: string
+  description: string | null
+  usageCount: number
+  creatorId: string
+  creator: User
+  createdAt: string
+  updatedAt: string
+  sourceGuildId: string
+  serializedSourceGuild: Partial<Guild>
+  isDirty: boolean | null
+}
+
 export interface Member {
   user?: User
   nick?: string | null

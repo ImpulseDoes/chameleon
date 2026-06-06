@@ -9,6 +9,7 @@ Designed for development of ...
 - We store timestamps in milliseconds instead of Discord ISO8601 timestamps
 - We store all structs in POJOs instead of classes
 - All gateway events are strict discriminated unions
+- Where possible, we're attaching X-Audit-Log-Reason header to REST requests
 
 ### Bugs?
 

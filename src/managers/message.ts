@@ -1,17 +1,11 @@
 import type { ChameleonREST } from '../rest/index.js'
 import type { TongueStore } from '../client/store.js'
 import { buildMessage, serializeComponent, buildUser } from '../builders/index.js'
-import type { Message, Embed } from '../types/message/index.js'
+import type { AttachmentBuilder } from '../builders/attachment.js'
+import type { Message, Embed, MessageCreateOptions } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
 import type { User } from '../types/user/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
-
-export type MessageCreateOptions = string | {
-  content?: string
-  embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
-  components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
-  reply?: { messageId: string, failIfNotExists?: boolean }
-}
 
 export class MessageManager {
 
@@ -41,21 +35,50 @@ export class MessageManager {
   async send(channelId: string, payload: MessageCreateOptions): Promise<ChameleonAPIResult<Message>> {
 
     const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
+    let files: AttachmentBuilder[] | undefined
 
     if (typeof payload === 'object') {
+
       if (payload.embeds) {
         data.embeds = payload.embeds.map(e => (e && typeof (e as { toJSON?(): Record<string, unknown> }).toJSON === 'function' ? (e as { toJSON(): Record<string, unknown> }).toJSON() : e))
       }
+
       if (payload.components) {
         data.components = payload.components.map(c => serializeComponent(c))
       }
+
       if (payload.reply) {
         data.message_reference = { message_id: payload.reply.messageId, fail_if_not_exists: payload.reply.failIfNotExists ?? true }
         delete data.reply
       }
+      
+      if (payload.poll) {
+
+        data.poll = {
+          question: payload.poll.question,
+          answers: payload.poll.answers.map(a => ({
+            ...(a.answerId !== undefined ? { answer_id: a.answerId } : {}),
+            poll_media: a.pollMedia
+          })),
+          ...(payload.poll.duration !== undefined ? { duration: payload.poll.duration } : {}),
+          ...(payload.poll.allowMultiselect !== undefined ? { allow_multiselect: payload.poll.allowMultiselect } : {}),
+          ...(payload.poll.layoutType !== undefined ? { layout_type: payload.poll.layoutType } : {}),
+        }
+      }
+
+      if (payload.files && payload.files.length > 0) {
+        files = payload.files
+        delete data.files
+      }
     }
 
-    const result = await this.rest.post<unknown>(`/channels/${channelId}/messages`, data)
+    let result: ChameleonAPIResult<unknown>
+
+    if (files && files.length > 0) {
+      result = await this.rest.requestWithFiles<unknown>('POST', `/channels/${channelId}/messages`, data, files)
+    } else {
+      result = await this.rest.post<unknown>(`/channels/${channelId}/messages`, data)
+    }
 
     if (!result.ok) return result as ChameleonAPIResult<never>
     
@@ -69,6 +92,7 @@ export class MessageManager {
   async edit(channelId: string, messageId: string, payload: MessageCreateOptions): Promise<ChameleonAPIResult<Message>> {
     
     const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
+    let files: AttachmentBuilder[] | undefined
 
     if (typeof payload === 'object') {
       if (payload.embeds) {
@@ -77,9 +101,19 @@ export class MessageManager {
       if (payload.components) {
         data.components = payload.components.map(c => serializeComponent(c))
       }
+      if (payload.files && payload.files.length > 0) {
+        files = payload.files
+        delete data.files
+      }
     }
 
-    const result = await this.rest.patch<unknown>(`/channels/${channelId}/messages/${messageId}`, data)
+    let result: ChameleonAPIResult<unknown>
+
+    if (files && files.length > 0) {
+      result = await this.rest.requestWithFiles<unknown>('PATCH', `/channels/${channelId}/messages/${messageId}`, data, files)
+    } else {
+      result = await this.rest.patch<unknown>(`/channels/${channelId}/messages/${messageId}`, data)
+    }
     
     if (!result.ok) return result as ChameleonAPIResult<never>
 
@@ -250,5 +284,46 @@ export class MessageManager {
     this.store.messages.set(message.id, message)
     
     return { ok: true, data: message }
+  }
+
+  async endPoll(channelId: string, messageId: string): Promise<ChameleonAPIResult<Message>> {
+
+    const result = await this.rest.post<unknown>(`/channels/${channelId}/polls/${messageId}/expire`)
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const message = buildMessage(result.data as Record<string, unknown>, this.store)
+    this.store.messages.set(message.id, message)
+
+    return { ok: true, data: message }
+  }
+
+  async getPollAnswerVoters(channelId: string, messageId: string, answerId: number, options?: { after?: string, limit?: number }): Promise<ChameleonAPIResult<User[]>> {
+
+    let url = `/channels/${channelId}/polls/${messageId}/answers/${answerId}`
+
+    if (options) {
+
+      const params = new URLSearchParams()
+      
+      if (options.after) params.append('after', options.after)
+      if (options.limit) params.append('limit', options.limit.toString())
+      
+      const qs = params.toString()
+      
+      if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown>(url)
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const data = result.data as { users: Record<string, unknown>[] }
+    const users = data.users.map(u => {
+      const user = buildUser(u)
+      this.store.users.set(user.id, user)
+      return user
+    })
+
+    return { ok: true, data: users }
   }
 }
