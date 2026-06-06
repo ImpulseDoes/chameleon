@@ -54,7 +54,7 @@ export type ChameleonEvent =
   | { type: 'MESSAGE_REACTION_REMOVE_ALL'; channelId: string; messageId: string; guildId?: string }
   | { type: 'MESSAGE_REACTION_REMOVE_EMOJI'; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji> }
   | { type: 'INTERACTION_CREATE'; interaction: Interaction }
-  | { type: 'VOICE_STATE_UPDATE'; voiceState: Voice }
+  | { type: 'VOICE_STATE_UPDATE'; oldVoiceState?: Voice; voiceState: Voice }
   | { type: 'VOICE_SERVER_UPDATE'; token: string; guildId: string; endpoint: string | null }
   | { type: 'STAGE_INSTANCE_CREATE'; stageInstance: StageInstance }
   | { type: 'STAGE_INSTANCE_UPDATE'; stageInstance: StageInstance }

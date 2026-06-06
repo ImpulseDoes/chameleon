@@ -709,9 +709,24 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'VOICE_STATE_UPDATE': {
+        
+        const guildId = d.guild_id as string | undefined
+        const userId = d.user_id as string
+        const key = guildId ? TongueStore.memberKey(guildId, userId) : userId
+
+        const oldVoiceState = this.cache.voiceStates.get(key)
+        const voiceState = buildVoiceState(d as Record<string, unknown>, this.cache)
+
+        if (!d.channel_id) {
+          this.cache.voiceStates.delete(key)
+        } else {
+          this.cache.voiceStates.set(key, voiceState)
+        }
+
         this.dispatch('VOICE_STATE_UPDATE', {
           type: 'VOICE_STATE_UPDATE',
-          voiceState: buildVoiceState(d as Record<string, unknown>, this.cache)
+          voiceState,
+          ...(oldVoiceState ? { oldVoiceState } : {})
         })
         break
       }
