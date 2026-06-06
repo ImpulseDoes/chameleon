@@ -111,6 +111,7 @@ export interface ModalFieldDef<Required extends boolean = true> {
 }
 
 export const field = {
+
   short: <ID extends string, Req extends boolean = true>(id: ID, label: string, options?: { required?: Req, minLength?: number, maxLength?: number, placeholder?: string, value?: string }): ModalFieldDef<Req> & { id: ID } => ({
     id,
     type: TEXT_INPUT_STYLES.SHORT,
@@ -118,6 +119,7 @@ export const field = {
     required: options?.required ?? (true as Req),
     ...options
   }),
+  
   paragraph: <ID extends string, Req extends boolean = true>(id: ID, label: string, options?: { required?: Req, minLength?: number, maxLength?: number, placeholder?: string, value?: string }): ModalFieldDef<Req> & { id: ID } => ({
     id,
     type: TEXT_INPUT_STYLES.PARAGRAPH,
