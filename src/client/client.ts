@@ -9,7 +9,7 @@ import { INTERACTION_TYPES } from '../utils/constants.ts'
 import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
-import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager } from '../managers/index.ts'
+import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager } from '../managers/index.js'
 
 export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
   token: string
@@ -47,6 +47,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public channels: ChannelManager
   public messages: MessageManager
   public collectors: CollectorManager
+  public webhooks: WebhookManager
+  public invites: InviteManager
 
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
   private middlewares: MiddlewareFn[] = []
@@ -68,6 +70,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.channels = new ChannelManager(this.rest, this.cache)
     this.messages = new MessageManager(this.rest, this.cache)
     this.collectors = new CollectorManager(this)
+    this.webhooks = new WebhookManager(this.rest, this.cache)
+    this.invites = new InviteManager(this.rest)
 
     // detect sharding from environment if 'auto'
     let shards: number[] = [0]

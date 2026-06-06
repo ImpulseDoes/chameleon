@@ -1,12 +1,16 @@
 import { BaseManager } from './base.js'
-import { buildGuild, buildChannel } from '../builders/index.js'
+import { buildGuild, buildChannel, buildEmoji, buildSticker, buildUser, buildInvite } from '../builders/index.js'
 import { RoleManager } from './role.js'
 import { MemberManager } from './member.js'
 import { TongueStore } from '../client/store.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
+import type { Emoji, Sticker } from '../types/expressions/index.js'
+import type { User } from '../types/user/index.js'
+import type { Invite } from '../types/invite/index.js'
+import type { AuditLog } from '../types/audit/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
-import { toSnakeCase } from '../utils/object.js'
+import { toSnakeCase, toCamelCase } from '../utils/object.js'
 
 export class GuildManager extends BaseManager<Guild> {
 
@@ -99,5 +103,240 @@ export class GuildManager extends BaseManager<Guild> {
     if (result.ok) this.store.guilds.delete(guildId)
 
     return result as ChameleonAPIResult<void>
+  }
+
+  async listEmojis(guildId: string): Promise<ChameleonAPIResult<Emoji[]>> {
+
+    const result = await this.rest.get<unknown[]>(`/guilds/${guildId}/emojis`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const emojis = (result.data as Record<string, unknown>[]).map(e => {
+      const emoji = buildEmoji(e)
+      this.store.emojis.set(emoji.id!, emoji)
+      return emoji
+    })
+
+    return { ok: true, data: emojis }
+  }
+
+  async fetchEmoji(guildId: string, emojiId: string): Promise<ChameleonAPIResult<Emoji>> {
+    
+    const cached = this.store.emojis.get(emojiId)
+    
+    if (cached) return { ok: true, data: cached }
+
+    const result = await this.rest.get<unknown>(`/guilds/${guildId}/emojis/${emojiId}`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const emoji = buildEmoji(result.data as Record<string, unknown>)
+    
+    this.store.emojis.set(emoji.id!, emoji)
+    
+    return { ok: true, data: emoji }
+  }
+
+  async createEmoji(guildId: string, payload: { name: string, image: string, roles?: string[] }, reason?: string): Promise<ChameleonAPIResult<Emoji>> {
+    
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.post<unknown>(`/guilds/${guildId}/emojis`, toSnakeCase(payload), headers)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const emoji = buildEmoji(result.data as Record<string, unknown>)
+    
+    this.store.emojis.set(emoji.id!, emoji)
+    
+    return { ok: true, data: emoji }
+  }
+
+  async editEmoji(guildId: string, emojiId: string, payload: { name?: string, roles?: string[] }, reason?: string): Promise<ChameleonAPIResult<Emoji>> {
+    
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.patch<unknown>(`/guilds/${guildId}/emojis/${emojiId}`, toSnakeCase(payload), headers)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const emoji = buildEmoji(result.data as Record<string, unknown>)
+    
+    this.store.emojis.set(emoji.id!, emoji)
+    
+    return { ok: true, data: emoji }
+  }
+
+  async deleteEmoji(guildId: string, emojiId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.delete(`/guilds/${guildId}/emojis/${emojiId}`, headers)
+    
+    if (result.ok) this.store.emojis.delete(emojiId)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async listStickers(guildId: string): Promise<ChameleonAPIResult<Sticker[]>> {
+
+    const result = await this.rest.get<unknown[]>(`/guilds/${guildId}/stickers`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const stickers = (result.data as Record<string, unknown>[]).map(s => {
+      const sticker = buildSticker(s)
+      this.store.stickers.set(sticker.id, sticker)
+      return sticker
+    })
+    
+    return { ok: true, data: stickers }
+  }
+
+  async fetchSticker(guildId: string, stickerId: string): Promise<ChameleonAPIResult<Sticker>> {
+
+    const cached = this.store.stickers.get(stickerId)
+    
+    if (cached) return { ok: true, data: cached }
+
+    const result = await this.rest.get<unknown>(`/guilds/${guildId}/stickers/${stickerId}`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const sticker = buildSticker(result.data as Record<string, unknown>)
+    
+    this.store.stickers.set(sticker.id, sticker)
+    
+    return { ok: true, data: sticker }
+  }
+
+  async listBans(guildId: string, options?: { limit?: number, before?: string, after?: string }): Promise<ChameleonAPIResult<{ reason: string | null, user: User }[]>> {
+    
+    let url = `/guilds/${guildId}/bans`
+    
+    if (options) {
+
+      const params = new URLSearchParams()
+      
+      if (options.limit) params.append('limit', options.limit.toString())
+      if (options.before) params.append('before', options.before)
+      if (options.after) params.append('after', options.after)
+      
+      const qs = params.toString()
+      
+        if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown[]>(url)
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const bans = (result.data as Record<string, unknown>[]).map(b => ({
+      reason: (b.reason as string | null) ?? null,
+      user: buildUser(b.user as Record<string, unknown>)
+    }))
+    return { ok: true, data: bans }
+  }
+
+  async fetchBan(guildId: string, userId: string): Promise<ChameleonAPIResult<{ reason: string | null, user: User }>> {
+    
+    const result = await this.rest.get<unknown>(`/guilds/${guildId}/bans/${userId}`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const b = result.data as Record<string, unknown>
+
+    return {
+      ok: true,
+      data: { reason: (b.reason as string | null) ?? null, user: buildUser(b.user as Record<string, unknown>) }
+    }
+  }
+
+  async getInvites(guildId: string): Promise<ChameleonAPIResult<Invite[]>> {
+
+    const result = await this.rest.get<unknown[]>(`/guilds/${guildId}/invites`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const invites = (result.data as Record<string, unknown>[]).map(i => buildInvite(i))
+    
+    return { ok: true, data: invites }
+  }
+
+  async getVanityURL(guildId: string): Promise<ChameleonAPIResult<{ code: string | null, uses: number }>> {
+
+    const result = await this.rest.get<unknown>(`/guilds/${guildId}/vanity-url`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const data = result.data as Record<string, unknown>
+    
+    return { ok: true, data: { code: (data.code as string | null) ?? null, uses: (data.uses as number) ?? 0 } }
+  }
+
+  async getPruneCount(guildId: string, options?: { days?: number, includeRoles?: string[] }): Promise<ChameleonAPIResult<number>> {
+
+    let url = `/guilds/${guildId}/prune`
+    
+    if (options) {
+      
+      const params = new URLSearchParams()
+      
+      if (options.days) params.append('days', options.days.toString())
+      if (options.includeRoles) params.append('include_roles', options.includeRoles.join(','))
+      
+      const qs = params.toString()
+      
+      if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown>(url)
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    return { ok: true, data: ((result.data as Record<string, unknown>).pruned as number) ?? 0 }
+  }
+
+  async beginPrune(guildId: string, options?: { days?: number, computePruneCount?: boolean, includeRoles?: string[] }, reason?: string): Promise<ChameleonAPIResult<number | null>> {
+    
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.post<unknown>(`/guilds/${guildId}/prune`, toSnakeCase(options ?? {}), headers)
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    return { ok: true, data: ((result.data as Record<string, unknown>).pruned as number | null) ?? null }
+  }
+
+  async fetchAuditLog(guildId: string, options?: { userId?: string, actionType?: number, before?: string, after?: string, limit?: number }): Promise<ChameleonAPIResult<AuditLog>> {
+    
+    let url = `/guilds/${guildId}/audit-logs`
+    
+    if (options) {
+      
+      const params = new URLSearchParams()
+      
+      if (options.userId) params.append('user_id', options.userId)
+      if (options.actionType !== undefined) params.append('action_type', options.actionType.toString())
+      if (options.before) params.append('before', options.before)
+      if (options.after) params.append('after', options.after)
+      if (options.limit) params.append('limit', options.limit.toString())
+
+      const qs = params.toString()
+      
+      if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown>(url)
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    return { ok: true, data: toCamelCase(result.data) as AuditLog }
   }
 }

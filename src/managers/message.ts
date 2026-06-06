@@ -1,8 +1,9 @@
 import type { ChameleonREST } from '../rest/index.js'
 import type { TongueStore } from '../client/store.js'
-import { buildMessage, serializeComponent } from '../builders/index.js'
+import { buildMessage, serializeComponent, buildUser } from '../builders/index.js'
 import type { Message, Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
+import type { User } from '../types/user/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 
 export type MessageCreateOptions = string | {
@@ -129,5 +130,125 @@ export class MessageManager {
     })
 
     return { ok: true, data: messages }
+  }
+
+  async react(channelId: string, messageId: string, emoji: string): Promise<ChameleonAPIResult<void>> {
+
+    const encodedEmoji = encodeURIComponent(emoji)
+    const result = await this.rest.put(`/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async removeReaction(channelId: string, messageId: string, emoji: string, userId: string = '@me'): Promise<ChameleonAPIResult<void>> {
+
+    const encodedEmoji = encodeURIComponent(emoji)
+    const result = await this.rest.delete(`/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/${userId}`)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async removeAllReactions(channelId: string, messageId: string, emoji?: string): Promise<ChameleonAPIResult<void>> {
+
+    let url = `/channels/${channelId}/messages/${messageId}/reactions`
+    
+    if (emoji) url += `/${encodeURIComponent(emoji)}`
+
+    const result = await this.rest.delete(url)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async getReactions(channelId: string, messageId: string, emoji: string, options?: { after?: string, limit?: number, type?: number }): Promise<ChameleonAPIResult<User[]>> {
+    
+    let url = `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
+    
+    if (options) {
+      
+      const params = new URLSearchParams()
+      
+      if (options.after) params.append('after', options.after)
+      if (options.limit) params.append('limit', options.limit.toString())
+      if (options.type !== undefined) params.append('type', options.type.toString())
+      
+      const qs = params.toString()
+      
+      if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown[]>(url)
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const users = (result.data as Record<string, unknown>[]).map(userData => {
+
+      const user = buildUser(userData)
+      
+      this.store.users.set(user.id, user)
+      
+      return user
+    })
+
+    return { ok: true, data: users }
+  }
+
+  async pin(channelId: string, messageId: string): Promise<ChameleonAPIResult<void>> {
+
+    const result = await this.rest.put(`/channels/${channelId}/pins/${messageId}`)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async unpin(channelId: string, messageId: string): Promise<ChameleonAPIResult<void>> {
+    
+    const result = await this.rest.delete(`/channels/${channelId}/pins/${messageId}`)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async getPins(channelId: string): Promise<ChameleonAPIResult<Message[]>> {
+
+    const result = await this.rest.get<unknown[]>(`/channels/${channelId}/pins`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const messages = (result.data as Record<string, unknown>[]).map(msgData => {
+
+      const msg = buildMessage(msgData, this.store)
+      
+      this.store.messages.set(msg.id, msg)
+      
+      return msg
+    })
+
+    return { ok: true, data: messages }
+  }
+
+  async bulkDelete(channelId: string, messageIds: string[]): Promise<ChameleonAPIResult<void>> {
+
+    const result = await this.rest.post(`/channels/${channelId}/messages/bulk-delete`, { messages: messageIds })
+    
+    if (result.ok) {
+
+      for (const id of messageIds) {
+        this.store.messages.delete(id)
+      }
+    }
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async forward(channelId: string, messageId: string): Promise<ChameleonAPIResult<Message>> {
+
+    const result = await this.rest.post<unknown>(`/channels/${channelId}/messages/${messageId}/crosspost`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const oldMsg = this.store.messages.get(messageId)
+    const message = buildMessage(result.data as Record<string, unknown>, this.store, oldMsg)
+    
+    this.store.messages.set(message.id, message)
+    
+    return { ok: true, data: message }
   }
 }

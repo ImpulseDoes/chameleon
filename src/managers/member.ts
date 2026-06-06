@@ -53,4 +53,91 @@ export class MemberManager {
 
     return { ok: true, data: member }
   }
+
+  async list(options?: { limit?: number, after?: string }): Promise<ChameleonAPIResult<Member[]>> {
+
+    let url = `/guilds/${this.guildId}/members`
+    
+    if (options) {
+      
+      const params = new URLSearchParams()
+      
+      if (options.limit) params.append('limit', options.limit.toString())
+      if (options.after) params.append('after', options.after)
+      
+      const qs = params.toString()
+      
+      if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown[]>(url)
+
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const members = (result.data as Record<string, unknown>[]).map(m => {
+      
+      const member = buildMember(m, this.guildId, this.store)
+      
+      if (member.user) {
+        this.store.members.set(TongueStore.memberKey(this.guildId, member.user.id), member)
+      }
+      
+      return member
+    })
+
+    return { ok: true, data: members }
+  }
+
+  async search(query: string, limit?: number): Promise<ChameleonAPIResult<Member[]>> {
+
+    const params = new URLSearchParams({ query })
+    
+    if (limit) params.append('limit', limit.toString())
+
+    const result = await this.rest.get<unknown[]>(`/guilds/${this.guildId}/members/search?${params.toString()}`)
+    
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const members = (result.data as Record<string, unknown>[]).map(m => {
+      
+      const member = buildMember(m, this.guildId, this.store)
+      
+      if (member.user) {
+        this.store.members.set(TongueStore.memberKey(this.guildId, member.user.id), member)
+      }
+
+      return member
+    })
+
+    return { ok: true, data: members }
+  }
+
+  async addRole(userId: string, roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+   
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.put(`/guilds/${this.guildId}/members/${userId}/roles/${roleId}`, undefined, headers)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async removeRole(userId: string, roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
+
+    const headers: Record<string, string> = {}
+    
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const result = await this.rest.delete(`/guilds/${this.guildId}/members/${userId}/roles/${roleId}`, headers)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async timeout(userId: string, until: number | Date | null, reason?: string): Promise<ChameleonAPIResult<Member>> {
+
+    const isoString = until ? (until instanceof Date ? until.toISOString() : new Date(until).toISOString()) : null
+    
+    return this.edit(userId, { communicationDisabledUntil: isoString as any }, reason)
+  }
 }

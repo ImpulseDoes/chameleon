@@ -8,8 +8,10 @@ import type { Entitlement } from '../types/entitlement/index.js'
 import type { Interaction, InteractionData } from '../types/interaction/index.js'
 import type { User } from '../types/user/index.js'
 import type { Member } from '../types/guild/index.js'
+import type { Invite } from '../types/invite/index.js'
+import type { Webhook } from '../types/webhook/index.js'
 import type { TongueStore } from '../client/store.js'
-import { buildUser, buildMember } from './index.js'
+import { buildUser, buildMember, buildChannel, buildGuild } from './index.js'
 
 export function buildStageInstance(raw: Record<string, unknown>): StageInstance {
 
@@ -270,5 +272,59 @@ export function buildInteraction(raw: Record<string, unknown>, cache?: TongueSto
       : [],
     authorizingIntegrationOwners: (raw.authorizing_integration_owners as Record<string, string>) ?? {},
     ...(raw.context !== undefined ? { context: raw.context as number } : {}),
+  }
+}
+
+export function buildInvite(raw: Record<string, unknown>): Invite {
+
+  let inviter: User | undefined
+  let targetUser: User | undefined
+
+  if (raw.inviter) {
+    inviter = buildUser(raw.inviter as Record<string, unknown>)
+  }
+
+  if (raw.target_user) {
+    targetUser = buildUser(raw.target_user as Record<string, unknown>)
+  }
+
+  return {
+    type: (raw.type as number) ?? 0,
+    code: raw.code as string,
+    ...(raw.guild ? { guild: buildGuild(raw.guild as Record<string, unknown>) } : {}),
+    channel: raw.channel ? buildChannel(raw.channel as Record<string, unknown>) : null,
+    ...(inviter ? { inviter } : {}),
+    ...(raw.target_type !== undefined ? { targetType: raw.target_type as number } : {}),
+    ...(targetUser ? { targetUser } : {}),
+    ...(raw.target_application !== undefined ? { targetApplication: raw.target_application as import('../types/application/index.js').Application } : {}),
+    ...(raw.approximate_presence_count !== undefined ? { approximatePresenceCount: raw.approximate_presence_count as number } : {}),
+    ...(raw.approximate_member_count !== undefined ? { approximateMemberCount: raw.approximate_member_count as number } : {}),
+    expiresAt: raw.expires_at ? Date.parse(raw.expires_at as string) : null,
+    ...(raw.guild_scheduled_event !== undefined ? { guildScheduledEvent: buildScheduledEvent(raw.guild_scheduled_event as Record<string, unknown>) } : {}),
+    ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
+    ...(raw.roles !== undefined ? { roles: raw.roles as any[] } : {}),
+  }
+}
+
+export function buildWebhook(raw: Record<string, unknown>): Webhook {
+
+  let user: User | undefined
+  if (raw.user) {
+    user = buildUser(raw.user as Record<string, unknown>)
+  }
+
+  return {
+    id: raw.id as string,
+    type: (raw.type as number) ?? 1,
+    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
+    ...(raw.channel_id !== undefined ? { channelId: raw.channel_id as string | null } : {}),
+    ...(user ? { user } : {}),
+    name: (raw.name as string | null) ?? null,
+    avatar: (raw.avatar as string | null) ?? null,
+    ...(raw.token !== undefined ? { token: raw.token as string } : {}),
+    applicationId: (raw.application_id as string | null) ?? null,
+    ...(raw.source_guild ? { sourceGuild: buildGuild(raw.source_guild as Record<string, unknown>) } : {}),
+    ...(raw.source_channel ? { sourceChannel: buildChannel(raw.source_channel as Record<string, unknown>) } : {}),
+    ...(raw.url !== undefined ? { url: raw.url as string } : {}),
   }
 }
