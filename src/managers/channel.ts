@@ -61,6 +61,46 @@ export class ChannelManager extends BaseManager<Channel> {
     return result as ChameleonAPIResult<void>
   }
 
+  async clone(channelId: string, options?: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
+
+    const cached = this.store.channels.get(channelId)
+    if (!cached) return { ok: false, status: 404, message: 'Channel not found in cache' } as ChameleonAPIResult<never>
+
+    const payload: Partial<Channel> = { ...options }
+
+    if (cached.name !== undefined) payload.name = cached.name
+    if (cached.type !== undefined) payload.type = cached.type
+    if (cached.topic !== undefined) payload.topic = cached.topic
+    if (cached.bitrate !== undefined) payload.bitrate = cached.bitrate
+    if (cached.userLimit !== undefined) payload.userLimit = cached.userLimit
+    if (cached.rateLimitPerUser !== undefined) payload.rateLimitPerUser = cached.rateLimitPerUser
+    if (cached.nsfw !== undefined) payload.nsfw = cached.nsfw
+    if (cached.position !== undefined) payload.position = cached.position
+    if (cached.parentId !== undefined) payload.parentId = cached.parentId
+    if (cached.permissionOverwrites !== undefined) payload.permissionOverwrites = cached.permissionOverwrites
+
+    if (!cached.guildId) return { ok: false, status: 400, message: 'Cannot clone a DM channel' } as ChameleonAPIResult<never>
+
+    return this.create(cached.guildId, payload, reason)
+  }
+
+  async setPositions(guildId: string, positions: { id: string, position?: number, lockPermissions?: boolean, parentId?: string }[], reason?: string): Promise<ChameleonAPIResult<void>> {
+    
+    const headers: Record<string, string> = {}
+    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+
+    const payload = positions.map(p => ({
+      id: p.id,
+      ...(p.position !== undefined ? { position: p.position } : {}),
+      ...(p.lockPermissions !== undefined ? { lock_permissions: p.lockPermissions } : {}),
+      ...(p.parentId !== undefined ? { parent_id: p.parentId } : {})
+    }))
+
+    const result = await this.rest.patch(`/guilds/${guildId}/channels`, payload, headers)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
   async updatePermissions(channelId: string, overwriteId: string, payload: Partial<Overwrite>, reason?: string): Promise<ChameleonAPIResult<void>> {
 
     const headers: Record<string, string> = {}
@@ -185,6 +225,49 @@ export class ChannelManager extends BaseManager<Channel> {
     })
     
     return { ok: true, data: { threads, members: data.members } }
+  }
+
+  async listArchivedThreads(channelId: string, type: 'public' | 'private', options?: { before?: string, limit?: number }): Promise<ChameleonAPIResult<{ threads: Channel[], members: unknown[], hasMore: boolean }>> {
+    
+    let url = `/channels/${channelId}/threads/archived/${type}`
+    
+    if (options) {
+
+      const params = new URLSearchParams()
+      
+      if (options.before) params.append('before', options.before)
+      if (options.limit) params.append('limit', options.limit.toString())
+      
+        const qs = params.toString()
+      
+        if (qs) url += `?${qs}`
+    }
+
+    const result = await this.rest.get<unknown>(url)
+    if (!result.ok) return result as ChameleonAPIResult<never>
+
+    const data = result.data as { threads: Record<string, unknown>[], members: unknown[], has_more: boolean }
+    const threads = data.threads.map(t => {
+      const channel = this.build(t)
+      this.store.channels.set(channel.id, channel)
+      return channel
+    })
+
+    return { ok: true, data: { threads, members: data.members, hasMore: data.has_more } }
+  }
+
+  async addThreadMember(channelId: string, userId: string): Promise<ChameleonAPIResult<void>> {
+
+    const result = await this.rest.put(`/channels/${channelId}/thread-members/${userId}`)
+    
+    return result as ChameleonAPIResult<void>
+  }
+
+  async removeThreadMember(channelId: string, userId: string): Promise<ChameleonAPIResult<void>> {
+    
+    const result = await this.rest.delete(`/channels/${channelId}/thread-members/${userId}`)
+    
+    return result as ChameleonAPIResult<void>
   }
 
   async createForumThread(channelId: string, options: {

@@ -66,6 +66,15 @@ export class MessageManager {
         }
       }
 
+      if (payload.tts !== undefined) data.tts = payload.tts
+      if (payload.flags !== undefined) data.flags = payload.flags
+      if (payload.nonce !== undefined) data.nonce = payload.nonce
+      if (payload.enforceNonce !== undefined) data.enforce_nonce = payload.enforceNonce
+      if (payload.stickerIds && payload.stickerIds.length > 0) {
+        data.sticker_ids = payload.stickerIds
+        delete data.stickerIds
+      }
+
       if (payload.files && payload.files.length > 0) {
         files = payload.files
         delete data.files

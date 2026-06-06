@@ -259,6 +259,11 @@ export type MessageCreateOptions = string | {
   reply?: { messageId: string, failIfNotExists?: boolean }
   files?: AttachmentBuilder[]
   poll?: PollCreateRequest
+  tts?: boolean
+  flags?: number
+  stickerIds?: string[]
+  nonce?: string | number
+  enforceNonce?: boolean
 }
 
 export type WebhookMessageCreateOptions = string | {

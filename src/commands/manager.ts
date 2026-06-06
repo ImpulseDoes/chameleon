@@ -63,6 +63,14 @@ export class CommandManager {
     this._deployCommands(commands).catch(console.error)
   }
 
+  registerGuild(guildId: string, ...commands: AnyCommandDef[]) {
+    for (const cmd of commands) {
+      this._commands.set(cmd.name, cmd)
+    }
+
+    this._deployCommands(commands, guildId).catch(console.error)
+  }
+
   registerComponent(handler: ComponentHandler) {
     this._components.push(handler)
   }
@@ -105,16 +113,18 @@ export class CommandManager {
     }
   }
 
-  private async _deployCommands(commands: AnyCommandDef[]) {
+  private async _deployCommands(commands: AnyCommandDef[], guildId?: string) {
 
     const payload = commands.map(c => this._transformCommand(c))
 
     // If client is already ready, deploy immediately
     if (this._client.user?.id) {
-       await this._client.rest.put(`/applications/${this._client.user.id}/commands`, payload)
+       const url = guildId ? `/applications/${this._client.user.id}/guilds/${guildId}/commands` : `/applications/${this._client.user.id}/commands`
+       await this._client.rest.put(url, payload)
     } else {
       this._client.on('READY', async () => {
-         await this._client.rest.put(`/applications/${this._client.user!.id}/commands`, payload)
+         const url = guildId ? `/applications/${this._client.user!.id}/guilds/${guildId}/commands` : `/applications/${this._client.user!.id}/commands`
+         await this._client.rest.put(url, payload)
       })
     }
   }

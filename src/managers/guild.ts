@@ -339,4 +339,11 @@ export class GuildManager extends BaseManager<Guild> {
 
     return { ok: true, data: toCamelCase(result.data) as AuditLog }
   }
+
+  async leave(guildId: string): Promise<ChameleonAPIResult<void>> {
+
+    const result = await this.rest.delete(`/users/@me/guilds/${guildId}`)
+    return result as ChameleonAPIResult<void>
+    
+  }
 }
