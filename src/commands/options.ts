@@ -18,7 +18,7 @@ export interface OptionDef<T extends OptionType, R extends boolean> {
   max?: number
   minLength?: number
   maxLength?: number
-  choices?: ChoiceDef[]
+  choices?: readonly ChoiceDef[]
   channelTypes?: number[]
 }
 
@@ -49,19 +49,19 @@ export function choices<const T extends readonly ChoiceDef[]>(...items: T): T {
 }
 
 export const opt = {
-  string: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<string>[], minLength?: number, maxLength?: number }): OptionDef<'string', R> => ({
+  string: <R extends boolean = false>(description: string, options?: { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number }): OptionDef<'string', R> => ({
     type: 'string',
     description,
     required: (options?.required ?? false) as R,
     ...options
   }),
-  integer: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'integer', R> => ({
+  integer: <R extends boolean = false>(description: string, options?: { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'integer', R> => ({
     type: 'integer',
     description,
     required: (options?.required ?? false) as R,
     ...options
   }),
-  number: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'number', R> => ({
+  number: <R extends boolean = false>(description: string, options?: { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'number', R> => ({
     type: 'number',
     description,
     required: (options?.required ?? false) as R,

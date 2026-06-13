@@ -1,5 +1,7 @@
 import { opt, type ChoiceDef, type OptionDef, type ResolveOptions, type OptionType } from './options.js'
 import type { CommandContext } from './context.js'
+import type { BitFieldResolvable } from '../utils/bitfield.js'
+import { PermissionsBitField } from '../types/permissions.js'
 
 type CommandOptionMap = Record<string, OptionDef<OptionType, boolean>>
 type SubcommandMap = Record<string, Subcommand<CommandOptionMap>>
@@ -34,6 +36,7 @@ export type CommandDef<
   description: string
   options?: O
   subcommands?: S
+  defaultMemberPermissions?: string | null
   execute?: ExecuteFunction<O>
 }
 
@@ -51,6 +54,10 @@ export function defineCommand<
   return def
 }
 
+interface CommandMetadata {
+  defaultMemberPermissions?: string | null
+}
+
 function appendOption<
   O extends CommandOptionMap,
   Name extends string,
@@ -63,9 +70,9 @@ function appendOption<
 }
 
 function normalizeChoicesOptions<R extends boolean, V extends string | number, Extra extends Record<string, unknown>>(
-  choicesOrOptions: ChoiceDef<V>[] | undefined | (Extra & { required?: R }),
+  choicesOrOptions: readonly ChoiceDef<V>[] | undefined | (Extra & { required?: R }),
   maybeOptions: Extra & { required?: R } | undefined
-): (Extra & { required?: R, choices?: ChoiceDef<V>[] }) | undefined {
+): (Extra & { required?: R, choices?: readonly ChoiceDef<V>[] }) | undefined {
   if (Array.isArray(choicesOrOptions)) {
     return {
       ...(maybeOptions ?? {} as Extra & { required?: R }),
@@ -73,7 +80,11 @@ function normalizeChoicesOptions<R extends boolean, V extends string | number, E
     }
   }
 
-  return choicesOrOptions
+  if (choicesOrOptions) {
+    return choicesOrOptions as Extra & { required?: R, choices?: readonly ChoiceDef<V>[] }
+  }
+
+  return undefined
 }
 
 export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<string, never>> {
@@ -100,7 +111,7 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   string<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<string>[] | { required?: R, choices?: ChoiceDef<string>[], minLength?: number, maxLength?: number },
+    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number },
     maybeOptions?: { required?: R, minLength?: number, maxLength?: number }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'string', R>>> {
     return this.option(name, opt.string(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -109,7 +120,7 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   integer<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<number>[] | { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number },
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
     maybeOptions?: { required?: R, min?: number, max?: number }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'integer', R>>> {
     return this.option(name, opt.integer(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -118,7 +129,7 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   number<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<number>[] | { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number },
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
     maybeOptions?: { required?: R, min?: number, max?: number }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'number', R>>> {
     return this.option(name, opt.number(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -195,7 +206,7 @@ export class SubcommandGroupDefinitionBuilder<S extends SubcommandMap = Record<s
     return new SubcommandGroupDefinitionBuilder(this.description, subcommands)
   }
 
-  subcommand<Name extends string, Sub extends Subcommand<CommandOptionMap>>(
+  subcommand<Name extends string, Sub extends Subcommand<any>>(
     name: Name,
     subcommand: Sub
   ): SubcommandGroupDefinitionBuilder<S & Record<Name, Sub>> {
@@ -228,11 +239,12 @@ export class CommandDefinitionBuilder<
     private readonly name: string,
     private readonly description: string,
     private readonly optionsDef?: O,
-    private readonly subcommandsDef?: S
+    private readonly subcommandsDef?: S,
+    private readonly metadata: CommandMetadata = {}
   ) {}
 
   options<NewOptions extends CommandOptionMap>(options: NewOptions): CommandDefinitionBuilder<NewOptions, S> {
-    return new CommandDefinitionBuilder(this.name, this.description, options, this.subcommandsDef)
+    return new CommandDefinitionBuilder(this.name, this.description, options, this.subcommandsDef, this.metadata)
   }
 
   option<Name extends string, Def extends OptionDef<OptionType, boolean>>(
@@ -243,14 +255,15 @@ export class CommandDefinitionBuilder<
       this.name,
       this.description,
       appendOption(this.optionsDef, name, definition),
-      this.subcommandsDef
+      this.subcommandsDef,
+      this.metadata
     )
   }
 
   string<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<string>[] | { required?: R, choices?: ChoiceDef<string>[], minLength?: number, maxLength?: number },
+    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number },
     maybeOptions?: { required?: R, minLength?: number, maxLength?: number }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'string', R>>, S> {
     return this.option(name, opt.string(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -259,7 +272,7 @@ export class CommandDefinitionBuilder<
   integer<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<number>[] | { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number },
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
     maybeOptions?: { required?: R, min?: number, max?: number }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'integer', R>>, S> {
     return this.option(name, opt.integer(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -268,7 +281,7 @@ export class CommandDefinitionBuilder<
   number<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: ChoiceDef<number>[] | { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number },
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
     maybeOptions?: { required?: R, min?: number, max?: number }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'number', R>>, S> {
     return this.option(name, opt.number(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
@@ -323,10 +336,10 @@ export class CommandDefinitionBuilder<
   }
 
   subcommands<NewSubcommands extends SubcommandMap | SubcommandGroupMap>(subcommands: NewSubcommands): CommandDefinitionBuilder<O, NewSubcommands> {
-    return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands)
+    return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands, this.metadata)
   }
 
-  subcommand<Name extends string, Sub extends Subcommand<CommandOptionMap>>(
+  subcommand<Name extends string, Sub extends Subcommand<any>>(
     name: Name,
     subcommand: Sub
   ): CommandDefinitionBuilder<O, S & Record<Name, Sub>> {
@@ -337,7 +350,8 @@ export class CommandDefinitionBuilder<
       {
         ...(this.subcommandsDef ?? {} as S),
         [name]: subcommand
-      } as S & Record<Name, Sub>
+      } as S & Record<Name, Sub>,
+      this.metadata
     )
   }
 
@@ -365,8 +379,28 @@ export class CommandDefinitionBuilder<
       } as S & Record<
         Name,
         Group extends SubcommandGroupDefinitionBuilder<infer GS> ? SubcommandGroup<GS> : Group
-      >
+      >,
+      this.metadata
     )
+  }
+
+  setPermissions(permissions: BitFieldResolvable | null): CommandDefinitionBuilder<O, S> {
+    return new CommandDefinitionBuilder(
+      this.name,
+      this.description,
+      this.optionsDef,
+      this.subcommandsDef,
+      {
+        ...this.metadata,
+        defaultMemberPermissions: permissions === null
+          ? null
+          : PermissionsBitField.resolve(permissions).toString()
+      }
+    )
+  }
+
+  setDefaultMemberPermissions(permissions: BitFieldResolvable | null): CommandDefinitionBuilder<O, S> {
+    return this.setPermissions(permissions)
   }
 
   execute(execute: ExecuteFunction<O>): CommandDef<O, S> {
@@ -375,6 +409,7 @@ export class CommandDefinitionBuilder<
       description: this.description,
       ...(this.optionsDef ? { options: this.optionsDef } : {}),
       ...(this.subcommandsDef ? { subcommands: this.subcommandsDef } : {}),
+      ...(this.metadata.defaultMemberPermissions !== undefined ? { defaultMemberPermissions: this.metadata.defaultMemberPermissions } : {}),
       execute
     } as CommandDef<O, S>)
   }
@@ -388,7 +423,8 @@ export class CommandDefinitionBuilder<
       name: this.name,
       description: this.description,
       ...(this.optionsDef ? { options: this.optionsDef } : {}),
-      ...(this.subcommandsDef ? { subcommands: this.subcommandsDef } : {})
+      ...(this.subcommandsDef ? { subcommands: this.subcommandsDef } : {}),
+      ...(this.metadata.defaultMemberPermissions !== undefined ? { defaultMemberPermissions: this.metadata.defaultMemberPermissions } : {})
     } as CommandDef<O, S>)
   }
 

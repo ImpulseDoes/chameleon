@@ -265,6 +265,7 @@ export class CommandManager {
     return {
       name: cmd.name,
       description: cmd.description,
+      default_member_permissions: cmd.defaultMemberPermissions ?? undefined,
       options: options.length ? options : undefined
     }
   }
