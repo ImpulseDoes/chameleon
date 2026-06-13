@@ -1,5 +1,5 @@
 import type { Client } from '../client/client.js'
-import type { AnyCommandDef } from './command.js'
+import type { AnyCommandDef, AnyCommandInput } from './command.js'
 import type { ModalDef, ModalFieldDef, ResolveModalFields } from '../components/define.js'
 import { CommandContext } from './context.js'
 import { ModalContext } from './interactions.js'
@@ -56,20 +56,24 @@ export class CommandManager {
     this._client = client
   }
 
-  register(...commands: AnyCommandDef[]) {
-    for (const cmd of commands) {
+  register(...commands: AnyCommandInput[]) {
+    const normalized = commands.map(cmd => this._normalizeCommand(cmd))
+
+    for (const cmd of normalized) {
       this._commands.set(cmd.name, cmd)
     }
 
-    this._deployCommands(commands).catch(console.error)
+    this._deployCommands(normalized).catch(console.error)
   }
 
-  registerGuild(guildId: string, ...commands: AnyCommandDef[]) {
-    for (const cmd of commands) {
+  registerGuild(guildId: string, ...commands: AnyCommandInput[]) {
+    const normalized = commands.map(cmd => this._normalizeCommand(cmd))
+
+    for (const cmd of normalized) {
       this._commands.set(cmd.name, cmd)
     }
 
-    this._deployCommands(commands, guildId).catch(console.error)
+    this._deployCommands(normalized, guildId).catch(console.error)
   }
 
   registerComponent(handler: ComponentHandler) {
@@ -90,7 +94,7 @@ export class CommandManager {
     }
 
     const files = fs.readdirSync(fullPath).filter(f => f.endsWith('.js') || f.endsWith('.ts'))
-    const commands: AnyCommandDef[] = []
+    const commands: AnyCommandInput[] = []
 
     for (const file of files) {
 
@@ -101,9 +105,10 @@ export class CommandManager {
         const module = await import(`file://${filePath}`)
         const command = module.default
 
-        if (command && typeof command.name === 'string') {
+        if (command && (typeof command.name === 'string' || typeof command.toCommand === 'function')) {
           commands.push(command)
         }
+
       } catch (err) {
         console.error(`[Chameleon] Failed to load command from ${file}:`, err)
       }
@@ -149,7 +154,9 @@ export class CommandManager {
 
     if (cmd.subcommands) {
 
-      for (const [subName, subDef] of Object.entries(cmd.subcommands)) {
+      for (const [subName, subDefRaw] of Object.entries(cmd.subcommands)) {
+
+        const subDef = subDefRaw as import('./command.js').Subcommand<Record<string, import('./options.js').OptionDef<OptionType, boolean>>>
 
         const subOpts: unknown[] = []
 
@@ -194,6 +201,15 @@ export class CommandManager {
       description: cmd.description,
       options: options.length ? options : undefined
     }
+  }
+
+  private _normalizeCommand(command: AnyCommandInput): AnyCommandDef {
+
+    if (typeof (command as { toCommand?: () => AnyCommandDef }).toCommand === 'function') {
+      return (command as { toCommand(): AnyCommandDef }).toCommand()
+    }
+
+    return command as AnyCommandDef
   }
 
   public async handleInteraction(raw: Record<string, unknown>) {

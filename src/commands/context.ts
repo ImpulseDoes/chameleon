@@ -43,6 +43,7 @@ export class BaseInteractionContext {
     this.channel = channel
   }
 
+  get client() { return this._client }
   get replied() { return this._replied }
   get deferred() { return this._deferred }
 

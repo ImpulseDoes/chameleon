@@ -288,13 +288,17 @@ export class ModalDefinitionBuilder<F extends ReadonlyArray<ModalFieldDef<boolea
    * The handler receives a strongly-typed `ctx.fields` object derived from the fields added to this builder
    * @param execute Modal submit handler
    */
-  handle(execute: (ctx: ModalContext<ResolveModalFields<F>>) => void | Promise<void>) {
+  execute(execute: (ctx: ModalContext<ResolveModalFields<F>>) => void | Promise<void>) {
     return defineModal({
       customId: this.customId,
       title: this.title,
       fields: this.fieldsDef,
       execute
     })
+  }
+
+  handle(execute: (ctx: ModalContext<ResolveModalFields<F>>) => void | Promise<void>) {
+    return this.execute(execute)
   }
 }
 

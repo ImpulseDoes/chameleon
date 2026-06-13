@@ -3,6 +3,11 @@ import type { Role } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 
 export type OptionType = 'string' | 'integer' | 'boolean' | 'user' | 'channel' | 'role' | 'number'
+export type ChoiceValue = string | number
+export interface ChoiceDef<V extends ChoiceValue = ChoiceValue> {
+  name: string
+  value: V
+}
 
 export interface OptionDef<T extends OptionType, R extends boolean> {
   type: T
@@ -10,7 +15,7 @@ export interface OptionDef<T extends OptionType, R extends boolean> {
   required: R
   min?: number
   max?: number
-  choices?: { name: string, value: string | number }[]
+  choices?: ChoiceDef[]
 }
 
 export type ResolveOptionType<T extends OptionType> = 
@@ -29,20 +34,28 @@ export type ResolveOptions<O extends Record<string, OptionDef<OptionType, boolea
   [K in keyof O]: ResolveOption<O[K]>
 }
 
+export function choice<V extends ChoiceValue>(name: string, value: V): ChoiceDef<V> {
+  return { name, value }
+}
+
+export function choices<const T extends readonly ChoiceDef[]>(...items: T): T {
+  return items
+}
+
 export const opt = {
-  string: <R extends boolean = false>(description: string, options?: { required?: R, choices?: {name: string, value: string}[], minLength?: number, maxLength?: number }): OptionDef<'string', R> => ({
+  string: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<string>[], minLength?: number, maxLength?: number }): OptionDef<'string', R> => ({
     type: 'string',
     description,
     required: (options?.required ?? false) as R,
     ...options
   }),
-  integer: <R extends boolean = false>(description: string, options?: { required?: R, choices?: {name: string, value: number}[], min?: number, max?: number }): OptionDef<'integer', R> => ({
+  integer: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'integer', R> => ({
     type: 'integer',
     description,
     required: (options?.required ?? false) as R,
     ...options
   }),
-  number: <R extends boolean = false>(description: string, options?: { required?: R, choices?: {name: string, value: number}[], min?: number, max?: number }): OptionDef<'number', R> => ({
+  number: <R extends boolean = false>(description: string, options?: { required?: R, choices?: ChoiceDef<number>[], min?: number, max?: number }): OptionDef<'number', R> => ({
     type: 'number',
     description,
     required: (options?.required ?? false) as R,
