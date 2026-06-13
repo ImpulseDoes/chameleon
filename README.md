@@ -21,4 +21,4 @@ If possible, Chameleon will attach the struct of related resources
 
 ### Documentation
 
-[Docs](https://impulsedoes.github.io/chameleon/)
+[Docs](https://chameleon.voidlogger.xyz)
