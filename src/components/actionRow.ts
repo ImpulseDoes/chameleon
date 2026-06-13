@@ -80,8 +80,44 @@ export const ActionRow = {
             value: field.value
           }
         }
+
+        if ('type' in c && c.type === COMPONENT_TYPES.CHECKBOX) {
+          const field = c as ModalFieldDef & { id: string }
+          return {
+            type: COMPONENT_TYPES.CHECKBOX,
+            custom_id: field.id,
+            label: field.label,
+            required: field.required,
+            value: field.value
+          }
+        }
+
+        if ('type' in c && c.type === COMPONENT_TYPES.RADIO_GROUP) {
+          const field = c as ModalFieldDef & { id: string }
+          return {
+            type: COMPONENT_TYPES.RADIO_GROUP,
+            custom_id: field.id,
+            label: field.label,
+            required: field.required,
+            options: field.options
+          }
+        }
+
+        if ('type' in c && c.type === COMPONENT_TYPES.CHECKBOX_GROUP) {
+          const field = c as ModalFieldDef & { id: string }
+          return {
+            type: COMPONENT_TYPES.CHECKBOX_GROUP,
+            custom_id: field.id,
+            label: field.label,
+            required: field.required,
+            min_values: field.minValues,
+            max_values: field.maxValues,
+            options: field.options
+          }
+        }
         
         return c // fallback for raw discord API objects
+        
       }).map(obj => {
 
         const clean: Record<string, unknown> = {} // remove undefined keys for cleaner JSON

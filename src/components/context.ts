@@ -42,11 +42,28 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
     const fields: Record<string, unknown> = {}
 
     if (data?.components) {
-      for (const row of data.components) {
-        for (const comp of row.components) {
-          fields[comp.custom_id] = comp.value
+
+      const extractFields = (components: any[]) => {
+        
+        for (const comp of components) {
+        
+          if (comp.custom_id !== undefined) {
+        
+            if (comp.values !== undefined) {
+              fields[comp.custom_id] = comp.values
+            } else if (comp.value !== undefined) {
+              fields[comp.custom_id] = comp.value
+            }
+          }
+          if (comp.components) {
+            extractFields(comp.components)
+          }
+          if (comp.component) {
+            extractFields([comp.component])
+          }
         }
       }
+      extractFields(data.components)
     }
     this.fields = fields as Fields
   }
@@ -54,9 +71,10 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
   async deferUpdate(): Promise<void> {
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
     })
+    this._assertOk(result, 'deferUpdate')
     this._deferred = true
   }
 
@@ -65,10 +83,11 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
     
     const data = this._resolvePayload(payload)
 
-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
       data
     })
+    this._assertOk(result, 'update')
     this._replied = true
   }
 }

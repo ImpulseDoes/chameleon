@@ -1,4 +1,5 @@
 export * from './context.js'
 export * from './define.js'
 export * from './actionRow.js'
+export * from './v2.js'
 export * from './manager.js'

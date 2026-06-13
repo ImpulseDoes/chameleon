@@ -1,5 +1,6 @@
 import type { Client } from '../client/client.js'
 import type { AnyCommandDef } from './command.js'
+import type { ModalDef, ModalFieldDef, ResolveModalFields } from '../components/define.js'
 import { CommandContext } from './context.js'
 import { ModalContext } from './interactions.js'
 import { ComponentContext } from '../components/context.js'
@@ -13,9 +14,9 @@ export interface ComponentHandler {
   execute?: (ctx: ComponentContext) => unknown | Promise<unknown>
 }
 
-export interface ModalHandler {
+export interface ModalHandler<Fields = Record<string, unknown>> {
   customId: string | RegExp
-  execute: (ctx: ModalContext) => unknown | Promise<unknown>
+  execute: (ctx: ModalContext<Fields>) => unknown | Promise<unknown>
 }
 
 import * as fs from 'fs'
@@ -75,8 +76,8 @@ export class CommandManager {
     this._components.push(handler)
   }
 
-  registerModal(handler: ModalHandler) {
-    this._modals.push(handler)
+  registerModal<F extends ReadonlyArray<ModalFieldDef<boolean, any>>>(handler: ModalDef<F> | ModalHandler<ResolveModalFields<F>>) {
+    this._modals.push(handler as ModalHandler)
   }
 
   async load(directory: string) {

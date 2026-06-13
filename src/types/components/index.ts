@@ -8,7 +8,19 @@ export const ComponentType = {
   USER_SELECT: 5,
   ROLE_SELECT: 6,
   MENTIONABLE_SELECT: 7,
-  CHANNEL_SELECT: 8
+  CHANNEL_SELECT: 8,
+  SECTION: 9,
+  TEXT_DISPLAY: 10,
+  THUMBNAIL: 11,
+  MEDIA_GALLERY: 12,
+  FILE: 13,
+  SEPARATOR: 14,
+  CONTAINER: 17,
+  LABEL: 18,
+  FILE_UPLOAD: 19,
+  RADIO_GROUP: 21,
+  CHECKBOX_GROUP: 22,
+  CHECKBOX: 23
 } as const
 
 export const ButtonStyle = {
@@ -43,4 +55,11 @@ export interface MessageComponent {
   components?: MessageComponent[]
   skuId?: string
   channelTypes?: number[]
+  content?: string
+  media?: { url: string }
+  accessory?: MessageComponent
+  description?: string
+  spoiler?: boolean
+  spacing?: number
+  divider?: boolean
 }

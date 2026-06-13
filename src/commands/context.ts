@@ -5,7 +5,8 @@ import type { Channel } from '../types/channel/index.js'
 import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
 import { serializeComponent } from '../builders/index.js'
-import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
+import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS, TEXT_INPUT_STYLES } from '../utils/constants.js'
+import type { ChameleonAPIResult } from '../rest/types.js'
 
 export type InteractionReplyOptions = string | {
   content?: string
@@ -43,6 +44,15 @@ export class BaseInteractionContext {
   get replied() { return this._replied }
   get deferred() { return this._deferred }
 
+  protected _assertOk(result: ChameleonAPIResult<unknown>, action: string): void {
+    
+    if (result.ok) return
+
+    const details = result.message ? `: ${result.message}` : ''
+    const raw = result.raw !== undefined ? ` | raw=${JSON.stringify(result.raw)}` : ''
+    throw new Error(`Discord rejected interaction ${action}${details}${raw}`)
+  }
+
   protected _resolvePayload(payload: InteractionReplyOptions): Record<string, unknown> {
 
     const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
@@ -66,16 +76,52 @@ export class BaseInteractionContext {
     return data
   }
 
+  protected _serializeModalField(field: Record<string, unknown>): Record<string, unknown> {
+
+    const component: Record<string, unknown> = {
+      type: field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH
+        ? COMPONENT_TYPES.TEXT_INPUT
+        : field.type,
+      custom_id: field.id,
+      required: field.required,
+    }
+
+    if (field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH) {
+      component.style = field.type
+      component.min_length = field.minLength
+      component.max_length = field.maxLength
+      component.placeholder = field.placeholder
+      component.value = field.value
+    } else if (field.type === COMPONENT_TYPES.CHECKBOX) {
+      component.value = field.value
+    } else if (field.type === COMPONENT_TYPES.RADIO_GROUP) {
+      component.options = field.options
+    } else if (field.type === COMPONENT_TYPES.CHECKBOX_GROUP) {
+      component.min_values = field.minValues
+      component.max_values = field.maxValues
+      component.options = field.options
+    }
+
+    const cleanComponent = Object.fromEntries(Object.entries(component).filter(([, value]) => value !== undefined))
+
+    return {
+      type: COMPONENT_TYPES.LABEL,
+      label: field.label,
+      component: cleanComponent
+    }
+  }
+
   async reply(payload: InteractionReplyOptions): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const data = this._resolvePayload(payload)
 
-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
       data
     })
+    this._assertOk(result, 'reply')
     this._replied = true
   }
 
@@ -83,10 +129,11 @@ export class BaseInteractionContext {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
       data: { flags: options?.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0 }
     })
+    this._assertOk(result, 'defer')
     this._deferred = true
   }
 
@@ -96,36 +143,25 @@ export class BaseInteractionContext {
     
     const data = this._resolvePayload(payload)
 
-    await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+    const result = await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+    this._assertOk(result, 'followUp')
   }
 
-  async showModal(modal: Record<string, unknown>): Promise<void> {
+  async showModal(modal: Record<string, unknown> | { type?: string, customId?: string, title?: string, fields?: readonly unknown[] }): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const payload = modal.type === 'modal' ? {
       custom_id: modal.customId,
       title: modal.title,
-      components: Array.isArray(modal.fields) ? modal.fields.map((f: Record<string, unknown>) => ({
-        type: COMPONENT_TYPES.ACTION_ROW,
-        components: [{
-          type: COMPONENT_TYPES.TEXT_INPUT,
-          custom_id: f.id,
-          style: f.type,
-          label: f.label,
-          required: f.required,
-          min_length: f.minLength,
-          max_length: f.maxLength,
-          placeholder: f.placeholder,
-          value: f.value
-        }]
-      })) : []
+      components: Array.isArray(modal.fields) ? modal.fields.map((f: Record<string, unknown>) => this._serializeModalField(f)) : []
     } : modal
 
-    await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
       type: INTERACTION_CALLBACK_TYPES.MODAL,
       data: payload
     })
+    this._assertOk(result, 'showModal')
     this._replied = true
   }
 }
