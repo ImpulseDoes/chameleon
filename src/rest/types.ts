@@ -1,6 +1,6 @@
 export type ChameleonAPIResult<T> = 
   | { ok: true, data: T }
-  | { ok: false, status: number, code?: number, message: string, raw?: unknown }
+  | { ok: false, status: number, code?: number, error: string, message: string, raw?: unknown }
 
 export interface ChameleonRESTOptions {
   token: string

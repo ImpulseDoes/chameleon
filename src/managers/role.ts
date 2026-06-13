@@ -36,7 +36,7 @@ export class RoleManager {
 
     if (target) return { ok: true, data: target }
 
-    return { ok: false, status: 404, message: 'Role not found' } as ChameleonAPIResult<never>
+    return { ok: false, status: 404, error: 'Role not found', message: 'Role not found' } as ChameleonAPIResult<never>
   }
 
   async list(): Promise<ChameleonAPIResult<Role[]>> {

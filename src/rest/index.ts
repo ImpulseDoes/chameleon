@@ -75,6 +75,7 @@ export class ChameleonREST {
         ok: false,
         status: response.status,
         ...(typeof errData?.code === 'number' ? { code: errData.code } : {}),
+        error: typeof errData?.message === 'string' ? errData.message : response.statusText,
         message: typeof errData?.message === 'string' ? errData.message : response.statusText,
         raw: data
       }
@@ -83,6 +84,7 @@ export class ChameleonREST {
       return {
         ok: false,
         status: 0,
+        error: error instanceof Error ? error.message : 'Unknown network error',
         message: error instanceof Error ? error.message : 'Unknown network error'
       }
     }
@@ -175,6 +177,7 @@ export class ChameleonREST {
         ok: false,
         status: response.status,
         ...(typeof errData?.code === 'number' ? { code: errData.code } : {}),
+        error: typeof errData?.message === 'string' ? errData.message : response.statusText,
         message: typeof errData?.message === 'string' ? errData.message : response.statusText,
         raw: data
       }
@@ -184,6 +187,7 @@ export class ChameleonREST {
       return {
         ok: false,
         status: 0,
+        error: error instanceof Error ? error.message : 'Unknown network error',
         message: error instanceof Error ? error.message : 'Unknown network error'
       }
     }

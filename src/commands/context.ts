@@ -4,8 +4,10 @@ import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
+import type { ModalDef, ModalFieldDef } from '../components/define.js'
 import { serializeComponent } from '../builders/index.js'
 import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS, TEXT_INPUT_STYLES } from '../utils/constants.js'
+import { Label } from '../components/v2.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 
 export type InteractionReplyOptions = string | {
@@ -76,39 +78,8 @@ export class BaseInteractionContext {
     return data
   }
 
-  protected _serializeModalField(field: Record<string, unknown>): Record<string, unknown> {
-
-    const component: Record<string, unknown> = {
-      type: field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH
-        ? COMPONENT_TYPES.TEXT_INPUT
-        : field.type,
-      custom_id: field.id,
-      required: field.required,
-    }
-
-    if (field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH) {
-      component.style = field.type
-      component.min_length = field.minLength
-      component.max_length = field.maxLength
-      component.placeholder = field.placeholder
-      component.value = field.value
-    } else if (field.type === COMPONENT_TYPES.CHECKBOX) {
-      component.value = field.value
-    } else if (field.type === COMPONENT_TYPES.RADIO_GROUP) {
-      component.options = field.options
-    } else if (field.type === COMPONENT_TYPES.CHECKBOX_GROUP) {
-      component.min_values = field.minValues
-      component.max_values = field.maxValues
-      component.options = field.options
-    }
-
-    const cleanComponent = Object.fromEntries(Object.entries(component).filter(([, value]) => value !== undefined))
-
-    return {
-      type: COMPONENT_TYPES.LABEL,
-      label: field.label,
-      component: cleanComponent
-    }
+  protected _serializeModalField(field: ModalFieldDef<boolean, any>): Record<string, unknown> {
+    return Label.of(field)
   }
 
   async reply(payload: InteractionReplyOptions): Promise<void> {
@@ -147,14 +118,14 @@ export class BaseInteractionContext {
     this._assertOk(result, 'followUp')
   }
 
-  async showModal(modal: Record<string, unknown> | { type?: string, customId?: string, title?: string, fields?: readonly unknown[] }): Promise<void> {
+  async showModal(modal: Record<string, unknown> | (ModalDef<ReadonlyArray<ModalFieldDef<boolean, any>>> & { type: 'modal' })): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const payload = modal.type === 'modal' ? {
       custom_id: modal.customId,
       title: modal.title,
-      components: Array.isArray(modal.fields) ? modal.fields.map((f: Record<string, unknown>) => this._serializeModalField(f)) : []
+      components: Array.isArray(modal.fields) ? modal.fields.map(f => this._serializeModalField(f)) : []
     } : modal
 
     const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {

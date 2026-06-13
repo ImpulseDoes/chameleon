@@ -22,7 +22,7 @@ export class ApplicationManager {
   public async fetchRoleConnectionMetadata(): Promise<ChameleonAPIResult<ApplicationRoleConnectionMetadata[]>> {
     
     if (!this._client.user?.id) {
-      return { ok: false, status: 400, message: 'Client not ready' } as ChameleonAPIResult<never>
+      return { ok: false, status: 400, error: 'Client not ready', message: 'Client not ready' } as ChameleonAPIResult<never>
     }
 
     const result = await this.rest.get<ApplicationRoleConnectionMetadata[]>(`/applications/${this._client.user.id}/role-connections/metadata`)
@@ -35,7 +35,7 @@ export class ApplicationManager {
   public async editRoleConnectionMetadata(records: ApplicationRoleConnectionMetadata[]): Promise<ChameleonAPIResult<ApplicationRoleConnectionMetadata[]>> {
 
     if (!this._client.user?.id) {
-      return { ok: false, status: 400, message: 'Client not ready' } as ChameleonAPIResult<never>
+      return { ok: false, status: 400, error: 'Client not ready', message: 'Client not ready' } as ChameleonAPIResult<never>
     }
 
     const result = await this.rest.put<ApplicationRoleConnectionMetadata[]>(`/applications/${this._client.user.id}/role-connections/metadata`, records)

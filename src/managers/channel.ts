@@ -64,7 +64,8 @@ export class ChannelManager extends BaseManager<Channel> {
   async clone(channelId: string, options?: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
 
     const cached = this.store.channels.get(channelId)
-    if (!cached) return { ok: false, status: 404, message: 'Channel not found in cache' } as ChameleonAPIResult<never>
+    
+    if (!cached) return { ok: false, status: 404, error: 'Channel not found in cache', message: 'Channel not found in cache' } as ChameleonAPIResult<never>
 
     const payload: Partial<Channel> = { ...options }
 
@@ -79,7 +80,7 @@ export class ChannelManager extends BaseManager<Channel> {
     if (cached.parentId !== undefined) payload.parentId = cached.parentId
     if (cached.permissionOverwrites !== undefined) payload.permissionOverwrites = cached.permissionOverwrites
 
-    if (!cached.guildId) return { ok: false, status: 400, message: 'Cannot clone a DM channel' } as ChameleonAPIResult<never>
+    if (!cached.guildId) return { ok: false, status: 400, error: 'Cannot clone a DM channel', message: 'Cannot clone a DM channel' } as ChameleonAPIResult<never>
 
     return this.create(cached.guildId, payload, reason)
   }

@@ -1,8 +1,13 @@
-import { COMPONENT_TYPES } from '../utils/constants.js'
-import { resolveButtonStyle, type ButtonDef } from './define.js'
+import { COMPONENT_TYPES, TEXT_INPUT_STYLES } from '../utils/constants.js'
+import { resolveButtonStyle, type ButtonDef, type ModalFieldDef } from './define.js'
 
 type ButtonLike = ButtonDef & { type: 'button' }
-type V2ComponentLike = Record<string, unknown> | { toJSON(): Record<string, unknown> } | ButtonLike
+type JSONEncodable = { toJSON(): Record<string, unknown> }
+type V2RawComponent = {
+  type: number
+  [key: string]: unknown
+}
+type V2ComponentLike = V2RawComponent | JSONEncodable | ButtonLike
 
 function serializeV2Button(button: Pick<ButtonDef, 'style' | 'label' | 'customId' | 'url' | 'disabled' | 'emoji' | 'skuId'>) {
   const obj: Record<string, unknown> = {
@@ -29,6 +34,24 @@ function normalizeV2Component(component: V2ComponentLike): Record<string, unknow
   }
 
   return component as Record<string, unknown>
+}
+
+function serializeModalFieldComponent(field: ModalFieldDef<boolean, any>): V2RawComponent {
+  return {
+    type: field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH
+      ? COMPONENT_TYPES.TEXT_INPUT
+      : field.type,
+    custom_id: field.id,
+    required: field.required,
+    style: field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH ? field.type : undefined,
+    min_length: field.minLength,
+    max_length: field.maxLength,
+    placeholder: field.placeholder,
+    value: field.value,
+    options: field.options,
+    min_values: field.minValues,
+    max_values: field.maxValues
+  }
 }
 
 class SectionBuilder {
@@ -120,4 +143,15 @@ export const Container = {
   stack: (...components: V2ComponentLike[]) => {
     return Container.of(components)
   }
+}
+
+export const Label = {
+  /** Wrap a modal field component in a V2 label container */
+  of: (field: ModalFieldDef<boolean, any>) => ({
+    type: COMPONENT_TYPES.LABEL,
+    label: field.label,
+    component: Object.fromEntries(
+      Object.entries(serializeModalFieldComponent(field)).filter(([, value]) => value !== undefined)
+    )
+  })
 }
