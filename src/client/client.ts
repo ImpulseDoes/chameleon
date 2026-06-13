@@ -148,6 +148,21 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   }
 
   /**
+   * register a one-time event listener that automatically removes itself after the first call
+   */
+  public once<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
+
+    const wrapper = (data: EventMap[K]): void => {
+      this.off(event, wrapper)
+      listener(data)
+    }
+
+    ;(wrapper as unknown as Record<string, unknown>).__original = listener
+
+    return this.on(event, wrapper)
+  }
+
+  /**
    * remove an event listener
    */
   public off<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
@@ -155,7 +170,15 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     const handlers = this.listeners.get(event)
     if (!handlers) return this
 
-    const index = handlers.indexOf(listener as (data: unknown) => void)
+    const castListener = listener as (data: unknown) => void
+    
+    let index = handlers.indexOf(castListener)
+
+    if (index === -1) {
+      index = handlers.findIndex(h =>
+        (h as unknown as Record<string, unknown>).__original === listener
+      )
+    }
 
     if (index !== -1) {
       handlers.splice(index, 1)
