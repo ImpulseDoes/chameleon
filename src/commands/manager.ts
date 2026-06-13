@@ -1,12 +1,13 @@
 import type { Client } from '../client/client.js'
-import type { AnyCommandDef, AnyCommandInput } from './command.js'
+import type { AnyCommandDef, AnyCommandInput, Subcommand, SubcommandGroup } from './command.js'
 import type { ModalDef, ModalFieldDef, ResolveModalFields } from '../components/define.js'
 import { CommandContext } from './context.js'
 import { ModalContext } from './interactions.js'
 import { ComponentContext } from '../components/context.js'
 import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
 import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
-import type { OptionType } from './options.js'
+import type { OptionDef, OptionType } from './options.js'
+import type { Attachment } from '../types/message/index.js'
 
 export interface ComponentHandler {
   type?: string
@@ -33,6 +34,7 @@ interface InteractionData {
     channels?: Record<string, Record<string, unknown>>
     roles?: Record<string, Record<string, unknown>>
     members?: Record<string, Record<string, unknown>>
+    attachments?: Record<string, Attachment>
   }
   values?: unknown[]
   components?: unknown[]
@@ -43,6 +45,14 @@ interface InteractionOption {
   type: number
   value?: unknown
   options?: InteractionOption[]
+}
+
+type RuntimeOptionDef = OptionDef<OptionType, boolean>
+type RuntimeSubcommand = Subcommand<Record<string, RuntimeOptionDef>>
+type RuntimeSubcommandGroup = SubcommandGroup<Record<string, RuntimeSubcommand>>
+
+function isSubcommandGroup(candidate: RuntimeSubcommand | RuntimeSubcommandGroup): candidate is RuntimeSubcommandGroup {
+  return 'subcommands' in candidate
 }
 
 export class CommandManager {
@@ -145,7 +155,9 @@ export class CommandManager {
         case 'user': return 6
         case 'channel': return 7
         case 'role': return 8
+        case 'mentionable': return 9
         case 'number': return 10
+        case 'attachment': return 11
         default: return 3
       }
     }
@@ -156,21 +168,69 @@ export class CommandManager {
 
       for (const [subName, subDefRaw] of Object.entries(cmd.subcommands)) {
 
-        const subDef = subDefRaw as import('./command.js').Subcommand<Record<string, import('./options.js').OptionDef<OptionType, boolean>>>
+        const candidate = subDefRaw as RuntimeSubcommand | RuntimeSubcommandGroup
+
+        if (isSubcommandGroup(candidate)) {
+
+          const nested = Object.entries(candidate.subcommands).map(([nestedName, nestedDefRaw]) => {
+          
+            const nestedDef = nestedDefRaw as RuntimeSubcommand
+            const nestedOptions = nestedDef.options ? Object.entries(nestedDef.options).map(([optName, optDefRaw]) => {
+          
+              const optDef = optDefRaw as RuntimeOptionDef
+          
+              return {
+                type: mapType(optDef.type),
+                name: optName,
+                description: optDef.description,
+                required: optDef.required,
+                choices: optDef.choices,
+                channel_types: optDef.channelTypes,
+                min_value: optDef.min,
+                max_value: optDef.max,
+                min_length: optDef.minLength,
+                max_length: optDef.maxLength
+              }
+            }) : []
+
+            return {
+              type: COMMAND_OPTION_TYPES.SUB_COMMAND,
+              name: nestedName,
+              description: nestedDef.description,
+              options: nestedOptions
+            }
+          })
+
+          options.push({
+            type: COMMAND_OPTION_TYPES.SUB_COMMAND_GROUP,
+            name: subName,
+            description: candidate.description,
+            options: nested
+          })
+          continue
+        }
+
+        const subDef = candidate as RuntimeSubcommand
 
         const subOpts: unknown[] = []
 
         if (subDef.options) {
+
           for (const [optName, optDefRaw] of Object.entries(subDef.options)) {
-             const optDef = optDefRaw as import('./options.js').OptionDef<OptionType, boolean>
-             subOpts.push({
+          
+            const optDef = optDefRaw as RuntimeOptionDef
+          
+            subOpts.push({
                type: mapType(optDef.type),
                name: optName,
                description: optDef.description,
                required: optDef.required,
                choices: optDef.choices,
+               channel_types: optDef.channelTypes,
                min_value: optDef.min,
-               max_value: optDef.max
+               max_value: optDef.max,
+               min_length: optDef.minLength,
+               max_length: optDef.maxLength
              })
           }
         }
@@ -182,16 +242,22 @@ export class CommandManager {
         })
       }
     } else if (cmd.options) {
+
       for (const [optName, optDefRaw] of Object.entries(cmd.options)) {
-        const optDef = optDefRaw as import('./options.js').OptionDef<OptionType, boolean>
+      
+        const optDef = optDefRaw as RuntimeOptionDef
+      
         options.push({
            type: mapType(optDef.type),
            name: optName,
            description: optDef.description,
            required: optDef.required,
            choices: optDef.choices,
+           channel_types: optDef.channelTypes,
            min_value: optDef.min,
-           max_value: optDef.max
+           max_value: optDef.max,
+           min_length: optDef.minLength,
+           max_length: optDef.maxLength
         })
       }
     }
@@ -234,12 +300,27 @@ export class CommandManager {
 
     let actualOptions: InteractionOption[] = rawOptions
 
-    if (rawOptions.length > 0 && rawOptions[0]!.type === COMMAND_OPTION_TYPES.SUB_COMMAND) {
+    if (rawOptions.length > 0 && rawOptions[0]!.type === COMMAND_OPTION_TYPES.SUB_COMMAND_GROUP) {
+
+      const groupName = rawOptions[0]!.name
+      const groupOption = rawOptions[0]!
+      const nestedSubcommand = groupOption.options?.[0]
+
+      if (nestedSubcommand) {
+        actualOptions = nestedSubcommand.options || []
+
+        const group = command.subcommands?.[groupName] as { subcommands?: Record<string, { execute?: typeof targetExecute }> } | undefined
+        const targetSubcommand = group?.subcommands?.[nestedSubcommand.name]
+        if (targetSubcommand) {
+          targetExecute = targetSubcommand.execute
+        }
+      }
+    } else if (rawOptions.length > 0 && rawOptions[0]!.type === COMMAND_OPTION_TYPES.SUB_COMMAND) {
       const subcommandName = rawOptions[0]!.name
       actualOptions = rawOptions[0]!.options || []
 
       if (command.subcommands && command.subcommands[subcommandName]) {
-        targetExecute = command.subcommands[subcommandName].execute
+        targetExecute = (command.subcommands[subcommandName] as { execute?: typeof targetExecute }).execute
       }
     }
 
@@ -250,6 +331,16 @@ export class CommandManager {
         parsedOptions[opt.name] = resolveChannel(opt.value as string, this._client)
       } else if (opt.type === COMMAND_OPTION_TYPES.ROLE && data.resolved?.roles?.[opt.value as string]) {
         parsedOptions[opt.name] = resolveRole(opt.value as string, this._client, raw.guild_id as string | undefined)
+      } else if (opt.type === COMMAND_OPTION_TYPES.MENTIONABLE) {
+        if (data.resolved?.users?.[opt.value as string]) {
+          parsedOptions[opt.name] = resolveUser(opt.value as string, this._client)
+        } else if (data.resolved?.roles?.[opt.value as string]) {
+          parsedOptions[opt.name] = resolveRole(opt.value as string, this._client, raw.guild_id as string | undefined)
+        } else {
+          parsedOptions[opt.name] = opt.value
+        }
+      } else if (opt.type === COMMAND_OPTION_TYPES.ATTACHMENT && data.resolved?.attachments?.[opt.value as string]) {
+        parsedOptions[opt.name] = data.resolved.attachments[opt.value as string]
       } else {
         parsedOptions[opt.name] = opt.value
       }

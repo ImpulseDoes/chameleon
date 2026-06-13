@@ -1,8 +1,9 @@
 import type { User } from '../types/user/index.js'
 import type { Role } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
+import type { Attachment } from '../types/message/index.js'
 
-export type OptionType = 'string' | 'integer' | 'boolean' | 'user' | 'channel' | 'role' | 'number'
+export type OptionType = 'string' | 'integer' | 'boolean' | 'user' | 'channel' | 'role' | 'mentionable' | 'number' | 'attachment'
 export type ChoiceValue = string | number
 export interface ChoiceDef<V extends ChoiceValue = ChoiceValue> {
   name: string
@@ -15,7 +16,10 @@ export interface OptionDef<T extends OptionType, R extends boolean> {
   required: R
   min?: number
   max?: number
+  minLength?: number
+  maxLength?: number
   choices?: ChoiceDef[]
+  channelTypes?: number[]
 }
 
 export type ResolveOptionType<T extends OptionType> = 
@@ -25,6 +29,8 @@ export type ResolveOptionType<T extends OptionType> =
   T extends 'user' ? User :
   T extends 'channel' ? Channel :
   T extends 'role' ? Role :
+  T extends 'mentionable' ? User | Role :
+  T extends 'attachment' ? Attachment :
   never
 
 export type ResolveOption<O extends OptionDef<OptionType, boolean>> =
@@ -71,13 +77,24 @@ export const opt = {
     description,
     required: (options?.required ?? false) as R
   }),
-  channel: <R extends boolean = false>(description: string, options?: { required?: R }): OptionDef<'channel', R> => ({
+  channel: <R extends boolean = false>(description: string, options?: { required?: R, channelTypes?: number[] }): OptionDef<'channel', R> => ({
     type: 'channel',
     description,
-    required: (options?.required ?? false) as R
+    required: (options?.required ?? false) as R,
+    ...options
   }),
   role: <R extends boolean = false>(description: string, options?: { required?: R }): OptionDef<'role', R> => ({
     type: 'role',
+    description,
+    required: (options?.required ?? false) as R
+  }),
+  mentionable: <R extends boolean = false>(description: string, options?: { required?: R }): OptionDef<'mentionable', R> => ({
+    type: 'mentionable',
+    description,
+    required: (options?.required ?? false) as R
+  }),
+  attachment: <R extends boolean = false>(description: string, options?: { required?: R }): OptionDef<'attachment', R> => ({
+    type: 'attachment',
     description,
     required: (options?.required ?? false) as R
   }),

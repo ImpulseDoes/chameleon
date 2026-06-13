@@ -3,6 +3,7 @@ import type { CommandContext } from './context.js'
 
 type CommandOptionMap = Record<string, OptionDef<OptionType, boolean>>
 type SubcommandMap = Record<string, Subcommand<CommandOptionMap>>
+type SubcommandGroupMap = Record<string, SubcommandGroup<SubcommandMap>>
 
 export type ExecuteFunction<O extends Record<string, OptionDef<OptionType, boolean>>> = (ctx: CommandContext<ResolveOptions<O>>) => void | Promise<void>
 
@@ -16,9 +17,18 @@ export function defineSubcommand<O extends CommandOptionMap>(def: Subcommand<O>)
   return def
 }
 
+export interface SubcommandGroup<S extends SubcommandMap = Record<string, never>> {
+  description: string
+  subcommands: S
+}
+
+export function defineSubcommandGroup<S extends SubcommandMap>(def: SubcommandGroup<S>): SubcommandGroup<S> {
+  return def
+}
+
 export type CommandDef<
   O extends CommandOptionMap = Record<string, never>,
-  S extends SubcommandMap = Record<string, never>
+  S extends SubcommandMap | SubcommandGroupMap = Record<string, never>
 > = {
   name: string
   description: string
@@ -32,7 +42,7 @@ export type AnyCommandInput = CommandDef<any, any> | CommandDefinitionBuilder<an
 
 export function defineCommand<
   O extends CommandOptionMap,
-  S extends SubcommandMap
+  S extends SubcommandMap | SubcommandGroupMap
 >(def: CommandDef<O, S>): CommandDef<O, S> {
 
   if (!def.execute && (!def.subcommands || Object.keys(def.subcommands).length === 0)) {
@@ -133,7 +143,7 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   channel<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    options?: { required?: R }
+    options?: { required?: R, channelTypes?: number[] }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'channel', R>>> {
     return this.option(name, opt.channel(description, options))
   }
@@ -144,6 +154,22 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
     options?: { required?: R }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'role', R>>> {
     return this.option(name, opt.role(description, options))
+  }
+
+  mentionable<Name extends string, R extends boolean = false>(
+    name: Name,
+    description: string,
+    options?: { required?: R }
+  ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'mentionable', R>>> {
+    return this.option(name, opt.mentionable(description, options))
+  }
+
+  attachment<Name extends string, R extends boolean = false>(
+    name: Name,
+    description: string,
+    options?: { required?: R }
+  ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'attachment', R>>> {
+    return this.option(name, opt.attachment(description, options))
   }
 
   execute(execute: ExecuteFunction<O>): Subcommand<O> {
@@ -159,9 +185,44 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   }
 }
 
+export class SubcommandGroupDefinitionBuilder<S extends SubcommandMap = Record<string, never>> {
+  constructor(
+    private readonly description: string,
+    private readonly subcommandsDef?: S
+  ) {}
+
+  subcommands<NewSubcommands extends SubcommandMap>(subcommands: NewSubcommands): SubcommandGroupDefinitionBuilder<NewSubcommands> {
+    return new SubcommandGroupDefinitionBuilder(this.description, subcommands)
+  }
+
+  subcommand<Name extends string, Sub extends Subcommand<CommandOptionMap>>(
+    name: Name,
+    subcommand: Sub
+  ): SubcommandGroupDefinitionBuilder<S & Record<Name, Sub>> {
+    return new SubcommandGroupDefinitionBuilder(
+      this.description,
+      {
+        ...(this.subcommandsDef ?? {} as S),
+        [name]: subcommand
+      } as S & Record<Name, Sub>
+    )
+  }
+
+  toGroup(): SubcommandGroup<S> {
+    return defineSubcommandGroup({
+      description: this.description,
+      subcommands: (this.subcommandsDef ?? {} as S)
+    })
+  }
+
+  build(): SubcommandGroup<S> {
+    return this.toGroup()
+  }
+}
+
 export class CommandDefinitionBuilder<
   O extends CommandOptionMap = Record<string, never>,
-  S extends SubcommandMap = Record<string, never>
+  S extends SubcommandMap | SubcommandGroupMap = Record<string, never>
 > {
   constructor(
     private readonly name: string,
@@ -232,7 +293,7 @@ export class CommandDefinitionBuilder<
   channel<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    options?: { required?: R }
+    options?: { required?: R, channelTypes?: number[] }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'channel', R>>, S> {
     return this.option(name, opt.channel(description, options))
   }
@@ -245,7 +306,23 @@ export class CommandDefinitionBuilder<
     return this.option(name, opt.role(description, options))
   }
 
-  subcommands<NewSubcommands extends SubcommandMap>(subcommands: NewSubcommands): CommandDefinitionBuilder<O, NewSubcommands> {
+  mentionable<Name extends string, R extends boolean = false>(
+    name: Name,
+    description: string,
+    options?: { required?: R }
+  ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'mentionable', R>>, S> {
+    return this.option(name, opt.mentionable(description, options))
+  }
+
+  attachment<Name extends string, R extends boolean = false>(
+    name: Name,
+    description: string,
+    options?: { required?: R }
+  ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'attachment', R>>, S> {
+    return this.option(name, opt.attachment(description, options))
+  }
+
+  subcommands<NewSubcommands extends SubcommandMap | SubcommandGroupMap>(subcommands: NewSubcommands): CommandDefinitionBuilder<O, NewSubcommands> {
     return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands)
   }
 
@@ -261,6 +338,34 @@ export class CommandDefinitionBuilder<
         ...(this.subcommandsDef ?? {} as S),
         [name]: subcommand
       } as S & Record<Name, Sub>
+    )
+  }
+
+  group<Name extends string, Group extends SubcommandGroup<SubcommandMap> | SubcommandGroupDefinitionBuilder<any>>(
+    name: Name,
+    group: Group
+  ): CommandDefinitionBuilder<
+    O,
+    S & Record<
+      Name,
+      Group extends SubcommandGroupDefinitionBuilder<infer GS> ? SubcommandGroup<GS> : Group
+    >
+  > {
+    const normalized = typeof (group as { toGroup?: () => SubcommandGroup<SubcommandMap> }).toGroup === 'function'
+      ? (group as { toGroup(): SubcommandGroup<SubcommandMap> }).toGroup()
+      : group as SubcommandGroup<SubcommandMap>
+
+    return new CommandDefinitionBuilder(
+      this.name,
+      this.description,
+      this.optionsDef,
+      {
+        ...(this.subcommandsDef ?? {} as S),
+        [name]: normalized
+      } as S & Record<
+        Name,
+        Group extends SubcommandGroupDefinitionBuilder<infer GS> ? SubcommandGroup<GS> : Group
+      >
     )
   }
 
@@ -304,4 +409,11 @@ export function command(name: string, description: string) {
  */
 export function subcommand(description: string) {
   return new SubcommandDefinitionBuilder(description)
+}
+
+/**
+ * Start a fluent subcommand group definition
+ */
+export function subcommandGroup(description: string) {
+  return new SubcommandGroupDefinitionBuilder(description)
 }
