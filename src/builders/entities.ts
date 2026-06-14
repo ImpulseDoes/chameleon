@@ -7,7 +7,7 @@ import type { Voice } from '../types/voice/index.js'
 import type { Entitlement } from '../types/entitlement/index.js'
 import type { Interaction, InteractionData } from '../types/interaction/index.js'
 import type { User } from '../types/user/index.js'
-import type { Member } from '../types/guild/index.js'
+import type { Member, Role } from '../types/guild/index.js'
 import type { Invite } from '../types/invite/index.js'
 import type { Webhook } from '../types/webhook/index.js'
 import type { TongueStore } from '../client/store.js'
@@ -216,7 +216,7 @@ export function buildVoiceState(raw: Record<string, unknown>, cache?: TongueStor
 }
 
 export function buildEntitlement(raw: Record<string, unknown>): Entitlement {
-  
+
   return {
     id: raw.id as string,
     skuId: (raw.sku_id as string) ?? '',
@@ -302,7 +302,7 @@ export function buildInvite(raw: Record<string, unknown>): Invite {
     expiresAt: raw.expires_at ? Date.parse(raw.expires_at as string) : null,
     ...(raw.guild_scheduled_event !== undefined ? { guildScheduledEvent: buildScheduledEvent(raw.guild_scheduled_event as Record<string, unknown>) } : {}),
     ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
-    ...(raw.roles !== undefined ? { roles: raw.roles as any[] } : {}),
+    ...(raw.roles !== undefined ? { roles: raw.roles as Role[] } : {}),
   }
 }
 
