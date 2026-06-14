@@ -202,6 +202,35 @@ export interface MessageSnapshot {
   message: Partial<Message>
 }
 
+export interface MessageSystemPresence {
+  any: boolean
+  booster: boolean
+  call: boolean
+  pinned: boolean
+  thread: boolean
+  welcome: boolean
+}
+
+export interface MessagePresence {
+  attachments: boolean
+  components: boolean
+  edited: boolean
+  embeds: boolean
+  forwarded: boolean
+  interaction: boolean
+  mentionHere: boolean
+  mentionEveryone: boolean
+  pinned: boolean
+  poll: boolean
+  reply: boolean
+  stickers: boolean
+  system: MessageSystemPresence
+  thread: boolean
+  tts: boolean
+  voiceMessage: boolean
+  webhook: boolean
+}
+
 export interface Message {
   id: string
   channelId: string
@@ -243,6 +272,7 @@ export interface Message {
   poll?: Poll
   call?: MessageCall
   sharedClientTheme?: SharedClientTheme
+  has: MessagePresence
 }
 
 export interface AttachmentData {

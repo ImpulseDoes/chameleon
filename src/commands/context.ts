@@ -15,6 +15,7 @@ export type InteractionReplyOptions = string | {
   embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
   components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
   ephemeral?: boolean
+  flags?: number
 }
 
 export class BaseInteractionContext {
@@ -62,7 +63,10 @@ export class BaseInteractionContext {
     
     if (typeof payload === 'object') {
       
-      if (payload.ephemeral) data.flags = MESSAGE_FLAGS.EPHEMERAL
+      if (payload.flags !== undefined || payload.ephemeral) {
+        data.flags = (payload.flags ?? 0) | (payload.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0)
+      }
+      
       if (payload.embeds) {
         data.embeds = payload.embeds.map((e: unknown) => {
           if (e && typeof (e as Record<string, unknown>).toJSON === 'function') {

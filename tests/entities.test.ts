@@ -105,6 +105,115 @@ describe('Edge cases', () => {
     expect(msg.mentions?.[0]?.username).toBe('john')
   })
 
+  it('should expose message presence helpers via has', () => {
+
+    const raw = {
+      id: 'msg2',
+      channel_id: 'ch1',
+      content: 'poll with sticker',
+      author: { id: 'user1', username: 'john', discriminator: '0001' },
+      mentions: [],
+      mention_roles: [],
+      attachments: [{ id: 'a1', filename: 'voice.ogg', size: 10, url: 'u', proxy_url: 'p' }],
+      embeds: [],
+      pinned: true,
+      tts: false,
+      flags: 1 << 13,
+      edited_timestamp: '2022-01-01T00:00:00.000Z',
+      type: 6,
+      poll: {
+        question: { text: 'Question?' },
+        answers: [],
+        expiry: null,
+        allowMultiselect: false,
+        layoutType: 1
+      },
+      sticker_items: [{ id: 'st1', name: 'wave', format_type: 1 }],
+      components: [{ type: 1, components: [] }],
+      webhook_id: 'wh1',
+      message_reference: { message_id: 'parent', type: 1 },
+      message_snapshots: [{ message: { content: 'forwarded' } }],
+      mention_everyone: true
+    }
+
+    const cache = new TongueStore()
+    const msg = buildMessage(raw, cache)
+
+    expect(msg.has.poll).toBe(true)
+    expect(msg.has.stickers).toBe(true)
+    expect(msg.has.components).toBe(true)
+    expect(msg.has.webhook).toBe(true)
+    expect(msg.has.reply).toBe(true)
+    expect(msg.has.forwarded).toBe(true)
+    expect(msg.has.pinned).toBe(true)
+    expect(msg.has.edited).toBe(true)
+    expect(msg.has.voiceMessage).toBe(true)
+    expect(msg.has.attachments).toBe(false)
+    expect(msg.has.system.any).toBe(true)
+    expect(msg.has.system.pinned).toBe(true)
+    expect(msg.has.system.booster).toBe(false)
+    expect(msg.has.system.welcome).toBe(false)
+    expect(msg.has.mentionHere).toBe(false)
+  })
+
+  it('should detect welcome and boost system messages', () => {
+
+    const cache = new TongueStore()
+    const welcome = buildMessage({
+      id: 'msg4',
+      channel_id: 'ch1',
+      content: '',
+      author: { id: 'user1', username: 'john', discriminator: '0001' },
+      mentions: [],
+      mention_roles: [],
+      attachments: [],
+      embeds: [],
+      pinned: false,
+      tts: false,
+      type: 7
+    }, cache)
+    const boost = buildMessage({
+      id: 'msg5',
+      channel_id: 'ch1',
+      content: '',
+      author: { id: 'user1', username: 'john', discriminator: '0001' },
+      mentions: [],
+      mention_roles: [],
+      attachments: [],
+      embeds: [],
+      pinned: false,
+      tts: false,
+      type: 8
+    }, cache)
+
+    expect(welcome.has.system.welcome).toBe(true)
+    expect(welcome.has.system.any).toBe(true)
+    expect(boost.has.system.booster).toBe(true)
+    expect(boost.has.system.welcome).toBe(false)
+  })
+
+  it('should detect mentionHere from content heuristically', () => {
+
+    const cache = new TongueStore()
+    const msg = buildMessage({
+      id: 'msg3',
+      channel_id: 'ch1',
+      content: 'ping @here',
+      author: { id: 'user1', username: 'john', discriminator: '0001' },
+      mentions: [],
+      mention_roles: [],
+      attachments: [],
+      embeds: [],
+      mention_everyone: true,
+      pinned: false,
+      tts: false,
+      type: 0
+    }, cache)
+
+    expect(msg.has.mentionHere).toBe(true)
+    expect(msg.has.mentionEveryone).toBe(true)
+  })
+
   it('should build Guild with roles properly', () => {
 
     const raw = {
