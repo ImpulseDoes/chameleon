@@ -6,6 +6,7 @@ import {
   ActionRowBuilder,
   ModalBuilder
 } from '../src/builders/components.ts'
+import { defineButton } from '../src/components/define.ts'
 import { ComponentType, ButtonStyle } from '../src/types/components/index.ts'
 
 describe('ButtonBuilder', () => {
@@ -101,7 +102,7 @@ describe('ActionRowBuilder', () => {
   it('should build an action row with components', () => {
 
     const btn = new ButtonBuilder().setCustomId('b1').setStyle(1)
-    
+
     const row = new ActionRowBuilder()
       .addComponent(btn)
       .addComponents(new ButtonBuilder().setCustomId('b2').setStyle(2))
@@ -117,6 +118,19 @@ describe('ActionRowBuilder', () => {
 
     expect(json.type).toBe(ComponentType.ACTION_ROW)
   })
+
+  it('should normalize DSL button defs inside ActionRowBuilder JSON', () => {
+
+    const row = new ActionRowBuilder()
+      .addComponent(defineButton({ customId: 'btn1', label: 'OK', style: 'success' }))
+
+    const json = row.toJSON()
+    const component = (json.components as Record<string, unknown>[])[0]!
+
+    expect(component.type).toBe(ComponentType.BUTTON)
+    expect(component.custom_id).toBe('btn1')
+    expect(component.style).toBe(ButtonStyle.SUCCESS)
+  })
 })
 
 describe('ModalBuilder', () => {
@@ -124,7 +138,7 @@ describe('ModalBuilder', () => {
   it('should build a modal with title, custom_id, and components', () => {
 
     const row = new ActionRowBuilder().addComponent(new TextInputBuilder().setCustomId('t1'))
-    
+
     const modal = new ModalBuilder()
       .setTitle('Test Modal')
       .setCustomId('modal-1')

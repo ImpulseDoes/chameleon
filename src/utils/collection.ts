@@ -75,7 +75,7 @@ export class Collection<K, V> extends Map<K, V> {
 
   public reduce<T>(fn: (accumulator: T, value: V, key: K, collection: this) => T, initialValue?: T): T {
 
-    let accumulator: T
+    let accumulator: T | undefined
     let init = false
 
     if (initialValue !== undefined) {
@@ -91,13 +91,15 @@ export class Collection<K, V> extends Map<K, V> {
         init = true
 
       } else {
-        // @ts-expect-error TypeScript doesnt know that accumulator has been initialized
-        accumulator = fn(accumulator, val, key, this)
+        accumulator = fn(accumulator as T, val, key, this)
       }
     }
-    
-    // @ts-expect-error TypeScript doesn't know that accumulator has been initialized
-    return accumulator
+
+    if (!init) {
+      throw new TypeError('Reduce of empty collection with no initial value')
+    }
+
+    return accumulator as T
   }
 
   public toArray(): V[] {

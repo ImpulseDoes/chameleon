@@ -139,7 +139,8 @@ export class ChameleonREST {
 
       const file = files[i]!
       const uint8 = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data)
-      const blob = new Blob([uint8 as unknown as BlobPart], { type: file.contentType ?? 'application/octet-stream' })
+      const binary = new Uint8Array(uint8)
+      const blob = new Blob([binary.buffer], { type: file.contentType ?? 'application/octet-stream' })
       
       formData.append(`files[${i}]`, blob, file.name)
     }

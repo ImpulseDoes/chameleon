@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { TEST_ENTITIES } from './mock/dataTest.js'
 import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild } from '../src/builders/index.ts'
+import { buildInteraction } from '../src/builders/entities.ts'
 import { TongueStore } from '../src/client/store.ts'
 import type { Client } from '../src/client/client.ts'
 import type { Channel } from '../src/types/channel/index.ts'
@@ -89,6 +90,31 @@ describe('Chameleon Entity Resolvers', () => {
 })
 
 describe('Edge cases', () => {
+
+  it('should normalize component interaction data to camelCase', () => {
+
+    const interaction = buildInteraction({
+      id: 'i1',
+      application_id: 'app1',
+      type: 3,
+      token: 'token',
+      version: 1,
+      data: {
+        custom_id: 'btn1',
+        component_type: 2,
+        values: ['a']
+      },
+      user: { id: 'u1', username: 'john' },
+      entitlements: [],
+      authorizing_integration_owners: {}
+    })
+
+    expect(interaction.data).toEqual(expect.objectContaining({
+      customId: 'btn1',
+      componentType: 2,
+      values: ['a']
+    }))
+  })
 
   it('should build Message with mentions correctly', () => {
 

@@ -4,9 +4,9 @@ import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
 import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
-import type { ModalDef, ModalFieldDef } from '../components/define.js'
+import type { ModalDef, ModalFieldDef, ModalFieldType } from '../components/define.js'
 import { serializeComponent } from '../builders/index.js'
-import { INTERACTION_CALLBACK_TYPES, COMPONENT_TYPES, MESSAGE_FLAGS, TEXT_INPUT_STYLES } from '../utils/constants.js'
+import { INTERACTION_CALLBACK_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
 import { Label } from '../components/v2.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 
@@ -83,7 +83,7 @@ export class BaseInteractionContext {
     return data
   }
 
-  protected _serializeModalField(field: ModalFieldDef<boolean, any>): Record<string, unknown> {
+  protected _serializeModalField(field: ModalFieldDef<boolean, ModalFieldType>): Record<string, unknown> {
     return Label.of(field)
   }
 
@@ -123,7 +123,7 @@ export class BaseInteractionContext {
     this._assertOk(result, 'followUp')
   }
 
-  async showModal(modal: Record<string, unknown> | (ModalDef<ReadonlyArray<ModalFieldDef<boolean, any>>> & { type: 'modal' })): Promise<void> {
+  async showModal(modal: Record<string, unknown> | (ModalDef<ReadonlyArray<ModalFieldDef<boolean, ModalFieldType>>> & { type: 'modal' })): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     

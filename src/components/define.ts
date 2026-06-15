@@ -147,8 +147,10 @@ export interface ModalFieldDef<Required extends boolean = true, T extends ModalF
   placeholder?: string
   value?: string | boolean | string[]
   options?: SelectOption[]
-  [key: string]: any
+  [key: string]: unknown
 }
+
+export type AnyModalField = ModalFieldDef<boolean, ModalFieldType>
 
 export const field = {
 
@@ -238,7 +240,7 @@ export const field = {
   })
 }
 
-export type ResolveModalFieldType<K extends ModalFieldDef<any, any>> = K['type'] extends 23 
+export type ResolveModalFieldType<K extends AnyModalField> = K['type'] extends 23 
   ? boolean 
   : K['type'] extends 19
     ? string[]
@@ -246,24 +248,24 @@ export type ResolveModalFieldType<K extends ModalFieldDef<any, any>> = K['type']
     ? string[] 
     : string
 
-export type ResolveModalFields<F extends ReadonlyArray<ModalFieldDef<boolean, any>>> = {
+export type ResolveModalFields<F extends ReadonlyArray<AnyModalField>> = {
   [K in F[number] as K['id']]: K['required'] extends false 
     ? ResolveModalFieldType<K> | undefined 
     : ResolveModalFieldType<K>
 }
 
-export interface ModalDef<F extends ReadonlyArray<ModalFieldDef<boolean, any>>> {
+export interface ModalDef<F extends ReadonlyArray<AnyModalField>> {
   customId: string
   title: string
   fields: F
   execute: (ctx: ModalContext<ResolveModalFields<F>>) => void | Promise<void>
 }
 
-export function defineModal<F extends ReadonlyArray<ModalFieldDef<boolean, any>>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
+export function defineModal<F extends ReadonlyArray<AnyModalField>>(def: ModalDef<F>): ModalDef<F> & { type: 'modal' } {
   return { ...def, type: 'modal' }
 }
 
-export class ModalDefinitionBuilder<F extends ReadonlyArray<ModalFieldDef<boolean, any>> = []> {
+export class ModalDefinitionBuilder<F extends ReadonlyArray<AnyModalField> = []> {
   constructor(
     private readonly customId: string,
     private readonly title: string,
@@ -275,7 +277,7 @@ export class ModalDefinitionBuilder<F extends ReadonlyArray<ModalFieldDef<boolea
    * The resulting builder keeps full type information, so added field IDs become available in `ctx.fields`
    * @param fields Fields to add to the modal
    */
-  add<NewFields extends ReadonlyArray<ModalFieldDef<boolean, any>>>(...fields: NewFields) {
+  add<NewFields extends ReadonlyArray<AnyModalField>>(...fields: NewFields) {
     return new ModalDefinitionBuilder<[...F, ...NewFields]>(
       this.customId,
       this.title,

@@ -167,4 +167,93 @@ describe('ComponentManager', () => {
     expect(consoleSpy).toHaveBeenCalled()
     consoleSpy.mockRestore()
   })
+
+  it('should support regex custom ids', async () => {
+
+    const client = new Client({ token: 'test', intents: [] })
+    const manager = new ComponentManager(client)
+    let called = false
+
+    manager.register({
+      customId: /^confirm:/,
+      execute: async () => {
+        called = true
+      }
+    })
+
+    await manager.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      data: { custom_id: 'confirm:123' },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(called).toBe(true)
+  })
+
+  it('should map mentionable select values from resolved payloads', async () => {
+
+    const client = new Client({ token: 'test', intents: [] })
+    const manager = new ComponentManager(client)
+    let executedCtx: ComponentContext<(import('../src/types/user/index.ts').User | import('../src/types/guild/index.ts').Role)[]> | undefined
+
+    manager.register({
+      type: 'mentionable_select',
+      customId: 'm_sel',
+      execute: async (ctx) => {
+        executedCtx = ctx as typeof executedCtx
+      }
+    })
+
+    await manager.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      data: {
+        custom_id: 'm_sel',
+        values: ['u2', 'r1'],
+        resolved: {
+          users: {
+            u2: { id: 'u2', username: 'jane' }
+          },
+          roles: {
+            r1: { id: 'r1', name: 'Mod', permissions: '8' }
+          }
+        }
+      },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(executedCtx?.values[0]).toHaveProperty('username', 'jane')
+    expect(executedCtx?.values[1]).toHaveProperty('name', 'Mod')
+  })
+
+  it('should reply with a fallback error if handler crashes before ack', async () => {
+
+    const client = new Client({ token: 'test', intents: [] })
+    client.rest.post = vi.fn().mockResolvedValue({ ok: true })
+    const manager = new ComponentManager(client)
+
+    manager.register({
+      customId: 'explode',
+      execute: async () => {
+        throw new Error('boom')
+      }
+    })
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await manager.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      data: { custom_id: 'explode' },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(client.rest.post).toHaveBeenCalledWith('/interactions/i1/t1/callback', {
+      type: 4,
+      data: expect.objectContaining({ content: 'This interaction failed.' })
+    })
+
+    consoleSpy.mockRestore()
+  })
 })

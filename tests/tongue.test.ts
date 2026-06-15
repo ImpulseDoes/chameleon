@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Tongue } from '../src/utils/tongue.ts'
+import { Collection } from '../src/utils/collection.ts'
 
 describe('Tongue (Cache)', () => {
 
@@ -108,5 +109,12 @@ describe('Tongue (Cache)', () => {
     expect(cache.size).toBe(1000)
     expect(cache.get('key0')).toBe(0)
     expect(cache.get('key999')).toBe(999)
+  })
+
+  it('collection.reduce should throw on empty collection without initial value', () => {
+
+    const collection = new Collection<string, number>()
+
+    expect(() => collection.reduce<number>((acc, value) => acc + value)).toThrow(TypeError)
   })
 })

@@ -2,6 +2,7 @@ import type { Client } from '../client/client.js'
 import type { User } from '../types/user/index.js'
 import type { Guild } from '../types/guild/index.js'
 import type { Channel } from '../types/channel/index.js'
+import type { Message } from '../types/message/index.js'
 import { BaseInteractionContext, type InteractionReplyOptions } from '../commands/context.js'
 import { INTERACTION_CALLBACK_TYPES } from '../utils/constants.js'
 
@@ -16,7 +17,9 @@ interface InteractionData {
 export class ComponentContext<Values = unknown, Fields = unknown> extends BaseInteractionContext {
   
   public customId: string
-  public message?: Record<string, unknown>
+  public componentType: number | undefined
+  public data: Record<string, unknown> | undefined
+  public message?: Partial<Message>
   public values: Values
   public fields: Fields
 
@@ -31,10 +34,12 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
 
     const data = raw.data as InteractionData | undefined
 
+    this.data = raw.data ? raw.data as Record<string, unknown> : undefined
     this.customId = data?.custom_id ?? ''
-    
+    this.componentType = data?.component_type
+
     if (raw.message) {
-      this.message = raw.message as Record<string, unknown>
+      this.message = raw.message as Partial<Message>
     }
 
     this.values = (data?.values as Values) ?? ([] as Values)
@@ -43,32 +48,37 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
 
     if (data?.components) {
 
-      const extractFields = (components: any[]) => {
+      const extractFields = (components: Record<string, unknown>[]) => {
         
         for (const comp of components) {
         
           if (comp.custom_id !== undefined) {
+            
+            const customId = comp.custom_id as string
         
             if (comp.values !== undefined) {
-              fields[comp.custom_id] = comp.values
+              fields[customId] = comp.values
             } else if (comp.value !== undefined) {
-              fields[comp.custom_id] = comp.value
+              fields[customId] = comp.value
             }
           }
+
           if (comp.components) {
-            extractFields(comp.components)
+            extractFields(comp.components as Record<string, unknown>[])
           }
+
           if (comp.component) {
-            extractFields([comp.component])
+            extractFields([comp.component as Record<string, unknown>])
           }
         }
       }
-      extractFields(data.components)
+      extractFields(data.components as unknown as Record<string, unknown>[])
     }
     this.fields = fields as Fields
   }
 
   async deferUpdate(): Promise<void> {
+
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
@@ -79,6 +89,7 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
   }
 
   async update(payload: InteractionReplyOptions): Promise<void> {
+    
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
     const data = this._resolvePayload(payload)

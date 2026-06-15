@@ -1,5 +1,5 @@
 import { COMPONENT_TYPES, TEXT_INPUT_STYLES } from '../utils/constants.js'
-import { resolveButtonStyle, type ButtonDef, type ModalFieldDef } from './define.js'
+import { resolveButtonStyle, type ButtonDef, type ModalFieldDef, type ModalFieldType } from './define.js'
 
 type ButtonLike = ButtonDef & { type: 'button' }
 type JSONEncodable = { toJSON(): Record<string, unknown> }
@@ -36,7 +36,7 @@ function normalizeV2Component(component: V2ComponentLike): Record<string, unknow
   return component as Record<string, unknown>
 }
 
-function serializeModalFieldComponent(field: ModalFieldDef<boolean, any>): V2RawComponent {
+function serializeModalFieldComponent(field: ModalFieldDef<boolean, ModalFieldType>): V2RawComponent {
   return {
     type: field.type === TEXT_INPUT_STYLES.SHORT || field.type === TEXT_INPUT_STYLES.PARAGRAPH
       ? COMPONENT_TYPES.TEXT_INPUT
@@ -147,7 +147,7 @@ export const Container = {
 
 export const Label = {
   /** Wrap a modal field component in a V2 label container */
-  of: (field: ModalFieldDef<boolean, any>) => ({
+  of: (field: ModalFieldDef<boolean, ModalFieldType>) => ({
     type: COMPONENT_TYPES.LABEL,
     label: field.label,
     component: Object.fromEntries(

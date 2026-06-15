@@ -14,10 +14,10 @@ export class Bucket {
 
     return new Promise((resolve, reject) => {
 
-      this.promiseQueue = this.promiseQueue.then(async () => {
-        
+      this.promiseQueue = this.promiseQueue.catch(() => {}).then(async () => {
+
         while (true) {
-          
+
           if (this.remaining <= 0 && Date.now() < this.resetTimestamp) {
             await new Promise(r => setTimeout(r, this.resetTimestamp - Date.now()))
           }
@@ -51,14 +51,14 @@ export class RateLimiter {
   private getRoute(method: string, endpoint: string): string {
 
     const path = endpoint.replace(/\/([a-z-]+)\/(?:[0-9]{17,19})/g, (match, p1) => {
-      
+
       if (['channels', 'guilds', 'webhooks'].includes(p1)) {
         return match
       }
-      
+
       return `/${p1}/:id`
     })
-    
+
     const reactionRoute = path.replace(/\/reactions\/[^/]+\/?(@me|[0-9]{17,19})?/g, '/reactions/:emoji/:id')
 
     return `${method} ${reactionRoute}`
@@ -70,7 +70,7 @@ export class RateLimiter {
     const bucketId = this.routeToBucket.get(route) ?? route
 
     let bucket = this.buckets.get(bucketId)
-    
+
     if (!bucket) {
       bucket = new Bucket()
       this.buckets.set(bucketId, bucket)
@@ -79,20 +79,20 @@ export class RateLimiter {
     const initialBucket = bucket
 
     return initialBucket.queue(async () => {
-      
+
       if (Date.now() < this.globalReset) {
         await new Promise(r => setTimeout(r, this.globalReset - Date.now()))
       }
-      
+
       const response = await requestFn()
 
       const global = response.headers.get('x-ratelimit-global') === 'true'
       const retryAfter = response.headers.get('retry-after')
-      
+
       if (response.status === 429) {
 
         const delay = retryAfter ? parseFloat(retryAfter) * 1000 : 5000
-        
+
         if (global) {
           this.globalReset = Date.now() + delay
         }

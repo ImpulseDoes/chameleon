@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { toSnakeCase } from '../src/utils/object.ts'
 import { ChameleonREST } from '../src/rest/index.ts'
+import { Bucket } from '../src/rest/rates.ts'
+import { ChameleonGateway } from '../src/gateway/index.ts'
 
 describe('Discord API Compliance', () => {
 
@@ -146,6 +148,34 @@ describe('Discord API Compliance', () => {
       expect(headers['X-Audit-Log-Reason']).toBe('Because%20I%20can')
 
       fetchSpy.mockRestore()
+    })
+  })
+
+  describe('Rate limiter resilience', () => {
+
+    it('should continue processing queued requests after a rejection', async () => {
+
+      const bucket = new Bucket()
+
+      await expect(bucket.queue(async () => {
+        throw new Error('first failed')
+      })).rejects.toThrow('first failed')
+
+      await expect(bucket.queue(async () => 'second ok')).resolves.toBe('second ok')
+    })
+  })
+
+  describe('Gateway disconnect behavior', () => {
+
+    it('should not schedule reconnect after manual disconnect', () => {
+
+      const gateway = new ChameleonGateway({ token: 'test', intents: 0 })
+      const connectSpy = vi.spyOn(gateway, 'connect').mockImplementation(() => {})
+
+      ;(gateway as unknown as { manualDisconnect: boolean }).manualDisconnect = true
+      ;(gateway as unknown as { onClose(event: CloseEvent): void }).onClose({ code: 1000, reason: 'bye' } as CloseEvent)
+
+      expect(connectSpy).not.toHaveBeenCalled()
     })
   })
 })

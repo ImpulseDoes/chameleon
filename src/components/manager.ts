@@ -6,6 +6,7 @@ import type { ComponentHandler } from '../commands/manager.js'
 export class ComponentManager {
 
   private handlers = new Map<string, ComponentHandler>()
+  private regexHandlers: ComponentHandler[] = []
 
   constructor(private client: Client) {}
 
@@ -15,6 +16,8 @@ export class ComponentManager {
 
       if (comp.customId && typeof comp.customId === 'string') {
         this.handlers.set(comp.customId, comp)
+      } else if (comp.customId instanceof RegExp) {
+        this.regexHandlers.push(comp)
       }
     }
   }
@@ -27,7 +30,10 @@ export class ComponentManager {
     const customId = data.custom_id as string
     if (!customId) return
 
-    const handler = this.handlers.get(customId)
+    const handler = this.handlers.get(customId) ?? this.regexHandlers.find(candidate => {
+      return candidate.customId instanceof RegExp && candidate.customId.test(customId)
+    })
+    
     if (!handler || !handler.execute) return
 
     const userRaw = (raw.member as Record<string, unknown> | undefined)?.user ?? raw.user
@@ -66,10 +72,22 @@ export class ComponentManager {
         const uData = resolved.users![id]
         return uData ? buildUser(uData) : { id }
       }) as typeof ctx.values
+    } else if (handler.type === 'role_select' && resolved?.roles) {
+      ctx.values = (ctx.values as string[]).map((id: string) => {
+        const roleData = resolved.roles![id]
+        return roleData ? roleData : { id }
+      }) as typeof ctx.values
     } else if (handler.type === 'channel_select' && resolved?.channels) {
       ctx.values = (ctx.values as string[]).map((id: string) => {
         const cData = resolved.channels![id]
         return cData ? buildChannel(cData, raw.guild_id as string | undefined) : { id }
+      }) as typeof ctx.values
+    } else if (handler.type === 'mentionable_select') {
+      ctx.values = (ctx.values as string[]).map((id: string) => {
+        const uData = resolved?.users?.[id]
+        if (uData) return buildUser(uData)
+        const roleData = resolved?.roles?.[id]
+        return roleData ? roleData : { id }
       }) as typeof ctx.values
     }
 
@@ -77,6 +95,9 @@ export class ComponentManager {
       await handler.execute(ctx)
     } catch (err) {
       console.error(`[COMPONENTS] Error executing component ${customId}:`, err)
+      if (!ctx.replied && !ctx.deferred) {
+        await ctx.reply({ content: 'This interaction failed.', ephemeral: true }).catch(() => {})
+      }
     }
   }
 }

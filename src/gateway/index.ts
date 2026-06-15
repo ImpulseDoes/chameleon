@@ -53,6 +53,7 @@ export class ChameleonGateway {
   private reconnectAttempts: number = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private _lastHeartbeatSend: number = 0
+  private manualDisconnect = false
   private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
 
   constructor(options: ChameleonGatewayOptions) {
@@ -78,6 +79,7 @@ export class ChameleonGateway {
     }
 
     this.clearReconnectTimer()
+    this.manualDisconnect = false
 
     const isResuming = this.canResume()
     const url = isResuming && this.resumeUrl
@@ -103,6 +105,7 @@ export class ChameleonGateway {
 
     this.stopHeartbeat()
     this.clearReconnectTimer()
+    this.manualDisconnect = code === 1000 || code === 1001
 
     if (code === 1000 || code === 1001) {
       this.sessionId = null
@@ -334,6 +337,14 @@ export class ChameleonGateway {
     this.stopHeartbeat()
     this.emit('debug', `[GATEWAY] Connection closed (code=${code}, reason=${reason || 'none'})`)
     this.emit('disconnected', { code, reason })
+
+    if (this.manualDisconnect) {
+      
+      this.status = 'disconnected'
+      this.manualDisconnect = false
+
+      return
+    }
 
     if (FATAL_CLOSE_CODES.has(code)) {
 

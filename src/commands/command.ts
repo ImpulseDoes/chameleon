@@ -40,7 +40,12 @@ export type CommandDef<
   execute?: ExecuteFunction<O>
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySubcommand = Subcommand<any>
+type AnySubcommandGroup = SubcommandGroup<SubcommandMap>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyCommandDef = CommandDef<any, any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyCommandInput = CommandDef<any, any> | CommandDefinitionBuilder<any, any>
 
 export function defineCommand<
@@ -206,7 +211,7 @@ export class SubcommandGroupDefinitionBuilder<S extends SubcommandMap = Record<s
     return new SubcommandGroupDefinitionBuilder(this.description, subcommands)
   }
 
-  subcommand<Name extends string, Sub extends Subcommand<any>>(
+  subcommand<Name extends string, Sub extends AnySubcommand>(
     name: Name,
     subcommand: Sub
   ): SubcommandGroupDefinitionBuilder<S & Record<Name, Sub>> {
@@ -339,7 +344,7 @@ export class CommandDefinitionBuilder<
     return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands, this.metadata)
   }
 
-  subcommand<Name extends string, Sub extends Subcommand<any>>(
+  subcommand<Name extends string, Sub extends AnySubcommand>(
     name: Name,
     subcommand: Sub
   ): CommandDefinitionBuilder<O, S & Record<Name, Sub>> {
@@ -355,7 +360,7 @@ export class CommandDefinitionBuilder<
     )
   }
 
-  group<Name extends string, Group extends SubcommandGroup<SubcommandMap> | SubcommandGroupDefinitionBuilder<any>>(
+  group<Name extends string, Group extends AnySubcommandGroup | SubcommandGroupDefinitionBuilder<SubcommandMap>>(
     name: Name,
     group: Group
   ): CommandDefinitionBuilder<

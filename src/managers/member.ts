@@ -5,6 +5,10 @@ import type { Member } from '../types/guild/index.js'
 import { buildMember } from '../builders/index.js'
 import { toSnakeCase } from '../utils/object.js'
 
+type MemberEditOptions = Partial<Omit<Member, 'communicationDisabledUntil'>> & {
+  communicationDisabledUntil?: string | number | Date | null
+}
+
 export class MemberManager {
 
   private guildId: string
@@ -37,13 +41,26 @@ export class MemberManager {
     return { ok: true, data: member }
   }
 
-  async edit(userId: string, payload: Partial<Member>, reason?: string): Promise<ChameleonAPIResult<Member>> {
+  async edit(userId: string, payload: MemberEditOptions, reason?: string): Promise<ChameleonAPIResult<Member>> {
 
     const headers: Record<string, string> = {}
 
     if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
 
-    const result = await this.rest.patch<unknown>(`/guilds/${this.guildId}/members/${userId}`, toSnakeCase(payload), headers)
+    const normalizedPayload = {
+      ...payload,
+      ...(payload.communicationDisabledUntil !== undefined ? {
+        communicationDisabledUntil: payload.communicationDisabledUntil === null
+          ? null
+          : payload.communicationDisabledUntil instanceof Date
+            ? payload.communicationDisabledUntil.toISOString()
+            : typeof payload.communicationDisabledUntil === 'number'
+              ? new Date(payload.communicationDisabledUntil).toISOString()
+              : payload.communicationDisabledUntil
+      } : {})
+    }
+
+    const result = await this.rest.patch<unknown>(`/guilds/${this.guildId}/members/${userId}`, toSnakeCase(normalizedPayload), headers)
 
     if (!result.ok) return result as ChameleonAPIResult<never>
 
@@ -136,8 +153,6 @@ export class MemberManager {
 
   async timeout(userId: string, until: number | Date | null, reason?: string): Promise<ChameleonAPIResult<Member>> {
 
-    const isoString = until ? (until instanceof Date ? until.toISOString() : new Date(until).toISOString()) : null
-    
-    return this.edit(userId, { communicationDisabledUntil: isoString as any }, reason)
+    return this.edit(userId, { communicationDisabledUntil: until }, reason)
   }
 }

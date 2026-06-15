@@ -1,6 +1,6 @@
 import type { Client } from '../client/client.js'
 import type { AnyCommandDef, AnyCommandInput, Subcommand, SubcommandGroup } from './command.js'
-import type { ModalDef, ModalFieldDef, ResolveModalFields } from '../components/define.js'
+import type { ModalDef, ResolveModalFields, AnyModalField } from '../components/define.js'
 import { CommandContext } from './context.js'
 import { ModalContext } from './interactions.js'
 import { ComponentContext } from '../components/context.js'
@@ -90,7 +90,7 @@ export class CommandManager {
     this._components.push(handler)
   }
 
-  registerModal<F extends ReadonlyArray<ModalFieldDef<boolean, any>>>(handler: ModalDef<F> | ModalHandler<ResolveModalFields<F>>) {
+  registerModal<F extends ReadonlyArray<AnyModalField>>(handler: ModalDef<F> | ModalHandler<ResolveModalFields<F>>) {
     this._modals.push(handler as ModalHandler)
   }
 

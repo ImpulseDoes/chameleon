@@ -252,11 +252,53 @@ export function buildInteraction(raw: Record<string, unknown>, cache?: TongueSto
     user = buildUser(raw.user as Record<string, unknown>)
   }
 
+  let data: InteractionData | undefined
+
+  if (raw.data) {
+  
+    const rawData = raw.data as Record<string, unknown>
+
+    if (rawData.components !== undefined && rawData.custom_id !== undefined) {
+  
+      data = {
+        customId: (rawData.custom_id as string) ?? '',
+        components: rawData.components as import('../types/components/index.js').MessageComponent[],
+      } as InteractionData
+  
+    } else if (rawData.custom_id !== undefined || rawData.component_type !== undefined) {
+  
+      data = {
+        customId: (rawData.custom_id as string) ?? '',
+        componentType: (rawData.component_type as number) ?? 0,
+        ...(rawData.values !== undefined ? { values: rawData.values as string[] } : {}),
+        ...(rawData.resolved !== undefined ? { resolved: rawData.resolved as import('../types/interaction/index.js').ResolvedData } : {}),
+      } as InteractionData
+  
+    } else if (rawData.name !== undefined || rawData.options !== undefined || rawData.resolved !== undefined) {
+  
+      data = {
+        ...(rawData.id !== undefined ? { id: rawData.id as string } : {}),
+        ...(rawData.name !== undefined ? { name: rawData.name as string } : {}),
+        ...(rawData.type !== undefined ? { type: rawData.type as number } : {}),
+        ...(rawData.resolved !== undefined ? { resolved: rawData.resolved as import('../types/interaction/index.js').ResolvedData } : {}),
+        ...(rawData.options !== undefined ? { options: rawData.options as import('../types/interaction/index.js').ApplicationCommandInteractionDataOption[] } : {}),
+        ...(rawData.guild_id !== undefined ? { guildId: rawData.guild_id as string } : {}),
+        ...(rawData.target_id !== undefined ? { targetId: rawData.target_id as string } : {}),
+  
+      } as InteractionData
+  
+    } else {
+  
+      data = rawData as unknown as InteractionData
+  
+    }
+  }
+
   return {
     id: raw.id as string,
     applicationId: (raw.application_id as string) ?? '',
     type: (raw.type as number) ?? 1,
-    ...(raw.data !== undefined ? { data: raw.data as InteractionData } : {}),
+    ...(data ? { data } : {}),
     ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
     ...(raw.channel_id !== undefined ? { channelId: raw.channel_id as string } : {}),
     ...(member ? { member } : {}),

@@ -4,7 +4,16 @@ import {
   ComponentType,
   ButtonStyle,
 } from '../types/components/index.js'
-import { toSnakeCase } from '../utils/object.js'
+import { toCamelCase, toSnakeCase } from '../utils/object.js'
+import { resolveButtonStyle, type ButtonDef, type StringSelectDef, type UserSelectDef, type RoleSelectDef, type MentionableSelectDef, type ChannelSelectDef } from '../components/define.js'
+
+type ComponentDefinition =
+  | (ButtonDef & { type: 'button' })
+  | (StringSelectDef & { type: 'string_select' })
+  | (UserSelectDef & { type: 'user_select' })
+  | (RoleSelectDef & { type: 'role_select' })
+  | (MentionableSelectDef & { type: 'mentionable_select' })
+  | (ChannelSelectDef & { type: 'channel_select' })
 
 function serializeEmoji(emoji?: Partial<Emoji>) {
 
@@ -244,7 +253,8 @@ export class ActionRowBuilder {
     component:
       | MessageComponent
       | { build(): MessageComponent }
-      | { toJSON(): Record<string, unknown> },
+      | { toJSON(): Record<string, unknown> }
+      | ComponentDefinition,
   ): this {
 
     this.data.components!.push(component as MessageComponent)
@@ -257,6 +267,7 @@ export class ActionRowBuilder {
       | MessageComponent
       | { build(): MessageComponent }
       | { toJSON(): Record<string, unknown> }
+      | ComponentDefinition
     )[]
   ): this {
 
@@ -270,33 +281,14 @@ export class ActionRowBuilder {
   build(): MessageComponent {
     return {
       ...this.data,
-      components: this.data.components!.map(component => {
-        if (
-          component &&
-          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
-        ) {
-          return (component as unknown as { build(): MessageComponent }).build()
-        }
-        return component
-      }),
+      components: this.data.components!.map(component => toCamelCase(serializeComponent(component)) as MessageComponent),
     }
   }
 
   toJSON(): Record<string, unknown> {
     return {
       type: ComponentType.ACTION_ROW,
-
-      components: this.data.components?.map(component => {
-
-        if (
-          component &&
-          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
-        ) {
-          return (component as unknown as { toJSON(): Record<string, unknown> }).toJSON()
-        }
-
-        return component
-      }),
+      components: this.data.components?.map(component => serializeComponent(component)),
     }
   }
 }
@@ -377,6 +369,67 @@ export class ModalBuilder {
 export function serializeComponent(component: MessageComponent | { build?(): MessageComponent } | { toJSON?(): Record<string, unknown> } | Record<string, unknown>): Record<string, unknown> {
   
   if (!component) return {}
+  
+  if (typeof component === 'object') {
+
+    const definition = component as Partial<ComponentDefinition>
+
+    if (definition.type === 'button') {
+      return Object.fromEntries(Object.entries({
+        type: ComponentType.BUTTON,
+        custom_id: definition.customId,
+        label: definition.label,
+        style: resolveButtonStyle(definition.style as string | number),
+        disabled: definition.disabled,
+        url: definition.url,
+        emoji: serializeEmoji(definition.emoji),
+        sku_id: definition.skuId,
+      }).filter(([, value]) => value !== undefined))
+    }
+
+    if (definition.type === 'string_select') {
+      return Object.fromEntries(Object.entries({
+        type: ComponentType.STRING_SELECT,
+        custom_id: definition.customId,
+        options: definition.options,
+        placeholder: definition.placeholder,
+        min_values: definition.minValues,
+        max_values: definition.maxValues,
+        disabled: definition.disabled,
+      }).filter(([, value]) => value !== undefined))
+    }
+
+    if (definition.type === 'user_select' || definition.type === 'role_select' || definition.type === 'mentionable_select') {
+      
+      const typeMap: Record<'user_select' | 'role_select' | 'mentionable_select', number> = {
+        user_select: ComponentType.USER_SELECT,
+        role_select: ComponentType.ROLE_SELECT,
+        mentionable_select: ComponentType.MENTIONABLE_SELECT,
+      }
+
+      return Object.fromEntries(Object.entries({
+        type: typeMap[definition.type],
+        custom_id: definition.customId,
+        placeholder: definition.placeholder,
+        min_values: definition.minValues,
+        max_values: definition.maxValues,
+        disabled: definition.disabled,
+      }).filter(([, value]) => value !== undefined))
+    }
+
+    if (definition.type === 'channel_select') {
+      return Object.fromEntries(Object.entries({
+        type: ComponentType.CHANNEL_SELECT,
+        custom_id: definition.customId,
+        placeholder: definition.placeholder,
+        min_values: definition.minValues,
+        max_values: definition.maxValues,
+        disabled: definition.disabled,
+        channel_types: definition.channelTypes,
+      }).filter(([, value]) => value !== undefined))
+    }
+  }
+  
   if (typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function') {
     return (component as { toJSON(): Record<string, unknown> }).toJSON()
   }
