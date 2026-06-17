@@ -92,12 +92,14 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
     
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
-    const data = this._resolvePayload(payload)
-
-    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const { data, files } = this._resolvePayload(payload)
+    const body = {
       type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
       data
-    })
+    }
+    const result = files && files.length > 0
+      ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
+      : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
     this._assertOk(result, 'update')
     this._replied = true
   }

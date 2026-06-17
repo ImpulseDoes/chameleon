@@ -5,6 +5,7 @@ import type { Channel } from '../types/channel/index.js'
 import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
 import type { ModalDef, ModalFieldDef, ModalFieldType } from '../components/define.js'
+import type { AttachmentBuilder } from '../builders/attachment.js'
 import { serializeComponent } from '../builders/index.js'
 import { INTERACTION_CALLBACK_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
 import { Label } from '../components/v2.js'
@@ -14,6 +15,7 @@ export type InteractionReplyOptions = string | {
   content?: string
   embeds?: (Embed | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
   components?: (MessageComponent | { build?(): MessageComponent } | { toJSON(): Record<string, unknown> } | Record<string, unknown>)[]
+  files?: AttachmentBuilder[]
   ephemeral?: boolean
   flags?: number
 }
@@ -57,9 +59,10 @@ export class BaseInteractionContext {
     throw new Error(`Discord rejected interaction ${action}${details}${raw}`)
   }
 
-  protected _resolvePayload(payload: InteractionReplyOptions): Record<string, unknown> {
+  protected _resolvePayload(payload: InteractionReplyOptions): { data: Record<string, unknown>, files?: AttachmentBuilder[] } {
 
     const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload }
+    let files: AttachmentBuilder[] | undefined
     
     if (typeof payload === 'object') {
       
@@ -79,8 +82,14 @@ export class BaseInteractionContext {
       if (payload.components) {
         data.components = payload.components.map(c => serializeComponent(c))
       }
+
+      if (payload.files && payload.files.length > 0) {
+        files = payload.files
+        delete data.files
+      }
     }
-    return data
+    
+    return files ? { data, files } : { data }
   }
 
   protected _serializeModalField(field: ModalFieldDef<boolean, ModalFieldType>): Record<string, unknown> {
@@ -91,12 +100,15 @@ export class BaseInteractionContext {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
     
-    const data = this._resolvePayload(payload)
-
-    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+    const { data, files } = this._resolvePayload(payload)
+    const body = {
       type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
       data
-    })
+    }
+
+    const result = files && files.length > 0
+      ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
+      : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
     this._assertOk(result, 'reply')
     this._replied = true
   }
@@ -117,9 +129,10 @@ export class BaseInteractionContext {
 
     if (!this._deferred && !this._replied) throw new Error('Interaction not acknowledged.')
     
-    const data = this._resolvePayload(payload)
-
-    const result = await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
+    const { data, files } = this._resolvePayload(payload)
+    const result = files && files.length > 0
+      ? await this._client.rest.requestWithFiles('POST', `/webhooks/${this._client.user?.id}/${this.interactionToken}`, data, files)
+      : await this._client.rest.post(`/webhooks/${this._client.user?.id}/${this.interactionToken}`, data)
     this._assertOk(result, 'followUp')
   }
 

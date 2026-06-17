@@ -115,7 +115,8 @@ export class ChameleonREST {
     endpoint: string,
     body: unknown,
     files: AttachmentBuilder[],
-    headers?: Record<string, string>
+    headers?: Record<string, string>,
+    attachmentParentKey?: string
   ): Promise<ChameleonAPIResult<T>> {
 
     const routePath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
@@ -129,10 +130,21 @@ export class ChameleonREST {
 
     const formData = new FormData()
 
-    const jsonPayload = {
-      ...(body as Record<string, unknown> ?? {}),
-      attachments: files.map((f, i) => f.toAttachmentJSON(i))
-    }
+    const payloadBody = { ...(body as Record<string, unknown> ?? {}) }
+    const attachments = files.map((f, i) => f.toAttachmentJSON(i))
+    const jsonPayload = attachmentParentKey
+      ? {
+          ...payloadBody,
+          [attachmentParentKey]: {
+            ...((payloadBody[attachmentParentKey] as Record<string, unknown> | undefined) ?? {}),
+            attachments
+          }
+        }
+      : {
+          ...payloadBody,
+          attachments
+        }
+
     formData.append('payload_json', JSON.stringify(jsonPayload))
 
     for (let i = 0; i < files.length; i++) {
