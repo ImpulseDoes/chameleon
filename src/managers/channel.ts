@@ -67,7 +67,7 @@ export class ChannelManager extends BaseManager<Channel> {
     
     if (!cached) return { ok: false, status: 404, error: 'Channel not found in cache', message: 'Channel not found in cache' } as ChameleonAPIResult<never>
 
-    const payload: Partial<Channel> = { ...options }
+    const payload: Partial<Channel> = {}
 
     if (cached.name !== undefined) payload.name = cached.name
     if (cached.type !== undefined) payload.type = cached.type
@@ -79,6 +79,7 @@ export class ChannelManager extends BaseManager<Channel> {
     if (cached.position !== undefined) payload.position = cached.position
     if (cached.parentId !== undefined) payload.parentId = cached.parentId
     if (cached.permissionOverwrites !== undefined) payload.permissionOverwrites = cached.permissionOverwrites
+    if (options) Object.assign(payload, options)
 
     if (!cached.guildId) return { ok: false, status: 400, error: 'Cannot clone a DM channel', message: 'Cannot clone a DM channel' } as ChameleonAPIResult<never>
 

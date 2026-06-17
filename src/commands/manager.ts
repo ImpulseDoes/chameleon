@@ -8,6 +8,9 @@ import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } fro
 import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
 import type { OptionDef, OptionType } from './options.js'
 import type { Attachment } from '../types/message/index.js'
+import * as fs from 'fs'
+import * as path from 'path'
+import { pathToFileURL } from 'url'
 
 export interface ComponentHandler {
   type?: string
@@ -19,9 +22,6 @@ export interface ModalHandler<Fields = Record<string, unknown>> {
   customId: string | RegExp
   execute: (ctx: ModalContext<Fields>) => unknown | Promise<unknown>
 }
-
-import * as fs from 'fs'
-import * as path from 'path'
 
 /** Shape of the `data` field inside a raw Discord interaction payload */
 interface InteractionData {
@@ -112,7 +112,7 @@ export class CommandManager {
 
       try {
 
-        const module = await import(`file://${filePath}`)
+        const module = await import(pathToFileURL(filePath).href)
         const command = module.default
 
         if (command && (typeof command.name === 'string' || typeof command.toCommand === 'function')) {

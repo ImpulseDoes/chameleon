@@ -31,7 +31,12 @@ export class ComponentManager {
     if (!customId) return
 
     const handler = this.handlers.get(customId) ?? this.regexHandlers.find(candidate => {
-      return candidate.customId instanceof RegExp && candidate.customId.test(customId)
+      
+      if (!(candidate.customId instanceof RegExp)) return false
+      
+      candidate.customId.lastIndex = 0
+      
+      return candidate.customId.test(customId)
     })
     
     if (!handler || !handler.execute) return
