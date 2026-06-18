@@ -4,6 +4,7 @@ import { buildScheduledEvent, buildUser } from '../builders/index.js'
 import type { GuildScheduledEvent, GuildScheduledEventUser } from '../types/scheduled/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class ScheduledEventManager {
 
@@ -11,6 +12,14 @@ export class ScheduledEventManager {
     protected rest: ChameleonREST,
     protected store: TongueStore
   ) {}
+
+  private _cacheEvent(raw: Record<string, unknown>): GuildScheduledEvent {
+
+    const event = buildScheduledEvent(raw)
+    this.store.scheduledEvents.set(event.id, event)
+    
+    return event
+  }
 
   async list(guildId: string, withUserCount?: boolean): Promise<ChameleonAPIResult<GuildScheduledEvent[]>> {
 
@@ -20,13 +29,7 @@ export class ScheduledEventManager {
     const result = await this.rest.get<unknown[]>(url)
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    const events = (result.data as Record<string, unknown>[]).map(e => {
-      
-      const event = buildScheduledEvent(e)
-      this.store.scheduledEvents.set(event.id, event)
-      
-      return event
-    })
+    const events = (result.data as Record<string, unknown>[]).map(event => this._cacheEvent(event))
 
     return { ok: true, data: events }
   }
@@ -42,38 +45,23 @@ export class ScheduledEventManager {
     const result = await this.rest.get<unknown>(url)
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    const event = buildScheduledEvent(result.data as Record<string, unknown>)
-    this.store.scheduledEvents.set(event.id, event)
-
-    return { ok: true, data: event }
+    return { ok: true, data: this._cacheEvent(result.data as Record<string, unknown>) }
   }
 
   async create(guildId: string, payload: Partial<GuildScheduledEvent>, reason?: string): Promise<ChameleonAPIResult<GuildScheduledEvent>> {
-    
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
 
-    const result = await this.rest.post<unknown>(`/guilds/${guildId}/scheduled-events`, toSnakeCase(payload), headers)
+    const result = await this.rest.post<unknown>(`/guilds/${guildId}/scheduled-events`, toSnakeCase(payload), createAuditLogHeaders(reason))
     if (!result.ok) return result as ChameleonAPIResult<never>
-
-    const event = buildScheduledEvent(result.data as Record<string, unknown>)
-    this.store.scheduledEvents.set(event.id, event)
     
-    return { ok: true, data: event }
+    return { ok: true, data: this._cacheEvent(result.data as Record<string, unknown>) }
   }
 
   async edit(guildId: string, eventId: string, payload: Partial<GuildScheduledEvent>, reason?: string): Promise<ChameleonAPIResult<GuildScheduledEvent>> {
-    
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
 
-    const result = await this.rest.patch<unknown>(`/guilds/${guildId}/scheduled-events/${eventId}`, toSnakeCase(payload), headers)
+    const result = await this.rest.patch<unknown>(`/guilds/${guildId}/scheduled-events/${eventId}`, toSnakeCase(payload), createAuditLogHeaders(reason))
     if (!result.ok) return result as ChameleonAPIResult<never>
-
-    const event = buildScheduledEvent(result.data as Record<string, unknown>)
-    this.store.scheduledEvents.set(event.id, event)
     
-    return { ok: true, data: event }
+    return { ok: true, data: this._cacheEvent(result.data as Record<string, unknown>) }
   }
 
   async delete(guildId: string, eventId: string): Promise<ChameleonAPIResult<void>> {

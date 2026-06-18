@@ -74,7 +74,6 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.application = new ApplicationManager(this.rest, this)
     this.soundboard = new SoundboardManager(this.rest)
 
-    this.gateway = new ChameleonGateway({ token: this.token, intents: this.intents })
     let shards: number[] = [0]
     let totalShards = 1
 
@@ -552,7 +551,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'THREAD_DELETE': {
         const id = d.id as string
         this.cache.channels.delete(id)
-        this.dispatch('THREAD_DELETE', {
+        void this.dispatch('THREAD_DELETE', {
           type: 'THREAD_DELETE',
           id,
           guildId: d.guild_id as string,
@@ -568,7 +567,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         if (member.user?.id) {
           this.cache.members.set(TongueStore.memberKey(guildId, member.user.id), member)
         }
-        this.dispatch('GUILD_MEMBER_ADD', { type: 'GUILD_MEMBER_ADD', member, guildId })
+        void this.dispatch('GUILD_MEMBER_ADD', { type: 'GUILD_MEMBER_ADD', member, guildId })
         break
       }
 
@@ -581,7 +580,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldMember = this.cache.members.get(memberKey)
         const updatedMember = buildMember(d, guildId, this.cache)
         this.cache.members.set(memberKey, updatedMember)
-        this.dispatch('GUILD_MEMBER_UPDATE', {
+        void this.dispatch('GUILD_MEMBER_UPDATE', {
           type: 'GUILD_MEMBER_UPDATE',
           guildId,
           user,
@@ -598,14 +597,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const rawUser = d.user as Record<string, unknown>
         const user = buildUser(rawUser)
         this.cache.members.delete(TongueStore.memberKey(guildId, user.id))
-        this.dispatch('GUILD_MEMBER_REMOVE', { type: 'GUILD_MEMBER_REMOVE', user, guildId })
+        void this.dispatch('GUILD_MEMBER_REMOVE', { type: 'GUILD_MEMBER_REMOVE', user, guildId })
         break
       }
 
       case 'GUILD_ROLE_CREATE': {
         const role = buildRole(d.role as Record<string, unknown>)
         this.cache.roles.set(role.id, role)
-        this.dispatch('GUILD_ROLE_CREATE', { type: 'GUILD_ROLE_CREATE', guildId: d.guild_id as string, role })
+        void this.dispatch('GUILD_ROLE_CREATE', { type: 'GUILD_ROLE_CREATE', guildId: d.guild_id as string, role })
         break
       }
 
@@ -614,28 +613,28 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldRole = this.cache.roles.get(rolePayload.id as string)
         const role = buildRole(rolePayload)
         this.cache.roles.set(role.id, role)
-        this.dispatch('GUILD_ROLE_UPDATE', { type: 'GUILD_ROLE_UPDATE', guildId: d.guild_id as string, role, ...(oldRole ? { oldRole } : {}) })
+        void this.dispatch('GUILD_ROLE_UPDATE', { type: 'GUILD_ROLE_UPDATE', guildId: d.guild_id as string, role, ...(oldRole ? { oldRole } : {}) })
         break
       }
 
       case 'GUILD_ROLE_DELETE': {
         const roleId = d.role_id as string
         this.cache.roles.delete(roleId)
-        this.dispatch('GUILD_ROLE_DELETE', { type: 'GUILD_ROLE_DELETE', guildId: d.guild_id as string, roleId })
+        void this.dispatch('GUILD_ROLE_DELETE', { type: 'GUILD_ROLE_DELETE', guildId: d.guild_id as string, roleId })
         break
       }
 
       case 'GUILD_BAN_ADD': {
         const user = buildUser(d.user as Record<string, unknown>)
         this.cache.users.set(user.id, user)
-        this.dispatch('GUILD_BAN_ADD', { type: 'GUILD_BAN_ADD', guildId: d.guild_id as string, user })
+        void this.dispatch('GUILD_BAN_ADD', { type: 'GUILD_BAN_ADD', guildId: d.guild_id as string, user })
         break
       }
 
       case 'GUILD_BAN_REMOVE': {
         const user = buildUser(d.user as Record<string, unknown>)
         this.cache.users.set(user.id, user)
-        this.dispatch('GUILD_BAN_REMOVE', { type: 'GUILD_BAN_REMOVE', guildId: d.guild_id as string, user })
+        void this.dispatch('GUILD_BAN_REMOVE', { type: 'GUILD_BAN_REMOVE', guildId: d.guild_id as string, user })
         break
       }
 
@@ -644,7 +643,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const message = buildMessage(d, this.cache)
         this.cache.messages.set(message.id, message)
 
-        this.dispatch('MESSAGE_CREATE', {
+        void this.dispatch('MESSAGE_CREATE', {
           type: 'MESSAGE_CREATE',
           message,
           channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel
@@ -656,7 +655,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldMessage = this.cache.messages.get(d.id as string)
         const message = buildMessage(d, this.cache, oldMessage)
         this.cache.messages.set(message.id, message)
-        this.dispatch('MESSAGE_UPDATE', {
+        void this.dispatch('MESSAGE_UPDATE', {
           type: 'MESSAGE_UPDATE',
           message,
           channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel,
@@ -669,7 +668,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const messageId = d.id as string
         const message = this.cache.messages.get(messageId)
         this.cache.messages.delete(messageId)
-        this.dispatch('MESSAGE_DELETE', {
+        void this.dispatch('MESSAGE_DELETE', {
           type: 'MESSAGE_DELETE',
           messageId,
           channelId: d.channel_id as string,
@@ -687,7 +686,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           if (msg) messages.push(msg)
           this.cache.messages.delete(id)
         }
-        this.dispatch('MESSAGE_DELETE_BULK', {
+        void this.dispatch('MESSAGE_DELETE_BULK', {
           type: 'MESSAGE_DELETE_BULK',
           messageIds: ids,
           channelId: d.channel_id as string,
@@ -706,7 +705,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.members.set(TongueStore.memberKey(d.guild_id as string, reactionMember.user.id), reactionMember)
           }
         }
-        this.dispatch('MESSAGE_REACTION_ADD', {
+        void this.dispatch('MESSAGE_REACTION_ADD', {
           type: 'MESSAGE_REACTION_ADD',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
@@ -719,7 +718,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_REACTION_REMOVE': {
-        this.dispatch('MESSAGE_REACTION_REMOVE', {
+        void this.dispatch('MESSAGE_REACTION_REMOVE', {
           type: 'MESSAGE_REACTION_REMOVE',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
@@ -731,7 +730,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_REACTION_REMOVE_ALL': {
-        this.dispatch('MESSAGE_REACTION_REMOVE_ALL', {
+        void this.dispatch('MESSAGE_REACTION_REMOVE_ALL', {
           type: 'MESSAGE_REACTION_REMOVE_ALL',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
@@ -741,7 +740,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_REACTION_REMOVE_EMOJI': {
-        this.dispatch('MESSAGE_REACTION_REMOVE_EMOJI', {
+        void this.dispatch('MESSAGE_REACTION_REMOVE_EMOJI', {
           type: 'MESSAGE_REACTION_REMOVE_EMOJI',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
@@ -782,7 +781,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           this.cache.voiceStates.set(key, voiceState)
         }
 
-        this.dispatch('VOICE_STATE_UPDATE', {
+        void this.dispatch('VOICE_STATE_UPDATE', {
           type: 'VOICE_STATE_UPDATE',
           voiceState,
           ...(oldVoiceState ? { oldVoiceState } : {})
@@ -791,7 +790,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'VOICE_SERVER_UPDATE': {
-        this.dispatch('VOICE_SERVER_UPDATE', {
+        void this.dispatch('VOICE_SERVER_UPDATE', {
           type: 'VOICE_SERVER_UPDATE',
           token: d.token as string,
           guildId: d.guild_id as string,
@@ -806,7 +805,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           inviter = buildUser(d.inviter as Record<string, unknown>)
           this.cache.users.set(inviter.id, inviter)
         }
-        this.dispatch('INVITE_CREATE', {
+        void this.dispatch('INVITE_CREATE', {
           type: 'INVITE_CREATE',
           channelId: d.channel_id as string,
           code: d.code as string,
@@ -820,7 +819,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INVITE_DELETE': {
-        this.dispatch('INVITE_DELETE', {
+        void this.dispatch('INVITE_DELETE', {
           type: 'INVITE_DELETE',
           channelId: d.channel_id as string,
           code: d.code as string,
@@ -830,7 +829,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'GUILD_INTEGRATIONS_UPDATE': {
-        this.dispatch('GUILD_INTEGRATIONS_UPDATE', {
+        void this.dispatch('GUILD_INTEGRATIONS_UPDATE', {
           type: 'GUILD_INTEGRATIONS_UPDATE',
           guildId: d.guild_id as string
         })
@@ -838,20 +837,20 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'ENTITLEMENT_CREATE': {
-        this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+        void this.dispatch('ENTITLEMENT_CREATE', { type: 'ENTITLEMENT_CREATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
       case 'ENTITLEMENT_UPDATE': {
-        this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+        void this.dispatch('ENTITLEMENT_UPDATE', { type: 'ENTITLEMENT_UPDATE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
       case 'ENTITLEMENT_DELETE': {
-        this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: buildEntitlement(d as Record<string, unknown>) })
+        void this.dispatch('ENTITLEMENT_DELETE', { type: 'ENTITLEMENT_DELETE', entitlement: buildEntitlement(d as Record<string, unknown>) })
         break
       }
 
       case 'PRESENCE_UPDATE': {
-        this.dispatch('PRESENCE_UPDATE', {
+        void this.dispatch('PRESENCE_UPDATE', {
           type: 'PRESENCE_UPDATE',
           user: d.user as Partial<User> & { id: string },
           guildId: d.guild_id as string,
@@ -871,7 +870,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.members.set(TongueStore.memberKey(d.guild_id as string, typingMember.user.id), typingMember)
           }
         }
-        this.dispatch('TYPING_START', {
+        void this.dispatch('TYPING_START', {
           type: 'TYPING_START',
           channelId: d.channel_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
@@ -889,12 +888,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         if (this.user && user.id === this.user.id) {
           this.user = user
         }
-        this.dispatch('USER_UPDATE', { type: 'USER_UPDATE', user, ...(oldUser ? { oldUser } : {}) })
+        void this.dispatch('USER_UPDATE', { type: 'USER_UPDATE', user, ...(oldUser ? { oldUser } : {}) })
         break
       }
 
       case 'WEBHOOKS_UPDATE': {
-        this.dispatch('WEBHOOKS_UPDATE', {
+        void this.dispatch('WEBHOOKS_UPDATE', {
           type: 'WEBHOOKS_UPDATE',
           guildId: d.guild_id as string,
           channelId: d.channel_id as string
@@ -903,7 +902,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_POLL_VOTE_ADD': {
-        this.dispatch('MESSAGE_POLL_VOTE_ADD', {
+        void this.dispatch('MESSAGE_POLL_VOTE_ADD', {
           type: 'MESSAGE_POLL_VOTE_ADD',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
@@ -915,7 +914,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_POLL_VOTE_REMOVE': {
-        this.dispatch('MESSAGE_POLL_VOTE_REMOVE', {
+        void this.dispatch('MESSAGE_POLL_VOTE_REMOVE', {
           type: 'MESSAGE_POLL_VOTE_REMOVE',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
@@ -953,14 +952,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             clearTimeout(state.timeout)
             this.pendingChunks.delete(guildId)
             if (state.reason) {
-              this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild: state.guild, reason: state.reason })
+              void this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild: state.guild, reason: state.reason })
             } else {
-              this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild: state.guild })
+              void this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild: state.guild })
             }
           }
         }
 
-        this.dispatch('GUILD_MEMBERS_CHUNK', {
+        void this.dispatch('GUILD_MEMBERS_CHUNK', {
           type: 'GUILD_MEMBERS_CHUNK',
           guildId,
           members,
@@ -982,7 +981,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             threads.push(ch)
           }
         }
-        this.dispatch('THREAD_LIST_SYNC', {
+        void this.dispatch('THREAD_LIST_SYNC', {
           type: 'THREAD_LIST_SYNC',
           guildId,
           ...(d.channel_ids ? { channelIds: d.channel_ids as string[] } : {}),
@@ -997,7 +996,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         for (const emoji of emojis) {
           if (emoji.id) this.cache.emojis.set(emoji.id, emoji)
         }
-        this.dispatch('GUILD_EMOJIS_UPDATE', {
+        void this.dispatch('GUILD_EMOJIS_UPDATE', {
           type: 'GUILD_EMOJIS_UPDATE',
           guildId: d.guild_id as string,
           emojis
@@ -1010,7 +1009,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         for (const sticker of stickers) {
           this.cache.stickers.set(sticker.id, sticker)
         }
-        this.dispatch('GUILD_STICKERS_UPDATE', {
+        void this.dispatch('GUILD_STICKERS_UPDATE', {
           type: 'GUILD_STICKERS_UPDATE',
           guildId: d.guild_id as string,
           stickers
@@ -1021,69 +1020,69 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'STAGE_INSTANCE_CREATE': {
         const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.set(stageInstance.id, stageInstance)
-        this.dispatch('STAGE_INSTANCE_CREATE', { type: 'STAGE_INSTANCE_CREATE', stageInstance })
+        void this.dispatch('STAGE_INSTANCE_CREATE', { type: 'STAGE_INSTANCE_CREATE', stageInstance })
         break
       }
       case 'STAGE_INSTANCE_UPDATE': {
         const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.set(stageInstance.id, stageInstance)
-        this.dispatch('STAGE_INSTANCE_UPDATE', { type: 'STAGE_INSTANCE_UPDATE', stageInstance })
+        void this.dispatch('STAGE_INSTANCE_UPDATE', { type: 'STAGE_INSTANCE_UPDATE', stageInstance })
         break
       }
       case 'STAGE_INSTANCE_DELETE': {
         const stageInstance = buildStageInstance(d as Record<string, unknown>)
         this.cache.stageInstances.delete(stageInstance.id)
-        this.dispatch('STAGE_INSTANCE_DELETE', { type: 'STAGE_INSTANCE_DELETE', stageInstance })
+        void this.dispatch('STAGE_INSTANCE_DELETE', { type: 'STAGE_INSTANCE_DELETE', stageInstance })
         break
       }
 
       case 'GUILD_SCHEDULED_EVENT_CREATE': {
         const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
-        this.dispatch('GUILD_SCHEDULED_EVENT_CREATE', { type: 'GUILD_SCHEDULED_EVENT_CREATE', scheduledEvent })
+        void this.dispatch('GUILD_SCHEDULED_EVENT_CREATE', { type: 'GUILD_SCHEDULED_EVENT_CREATE', scheduledEvent })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_UPDATE': {
         const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.set(scheduledEvent.id, scheduledEvent)
-        this.dispatch('GUILD_SCHEDULED_EVENT_UPDATE', { type: 'GUILD_SCHEDULED_EVENT_UPDATE', scheduledEvent })
+        void this.dispatch('GUILD_SCHEDULED_EVENT_UPDATE', { type: 'GUILD_SCHEDULED_EVENT_UPDATE', scheduledEvent })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_DELETE': {
         const scheduledEvent = buildScheduledEvent(d as Record<string, unknown>)
         this.cache.scheduledEvents.delete(scheduledEvent.id)
-        this.dispatch('GUILD_SCHEDULED_EVENT_DELETE', { type: 'GUILD_SCHEDULED_EVENT_DELETE', scheduledEvent })
+        void this.dispatch('GUILD_SCHEDULED_EVENT_DELETE', { type: 'GUILD_SCHEDULED_EVENT_DELETE', scheduledEvent })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_USER_ADD': {
-        this.dispatch('GUILD_SCHEDULED_EVENT_USER_ADD', { type: 'GUILD_SCHEDULED_EVENT_USER_ADD', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
+        void this.dispatch('GUILD_SCHEDULED_EVENT_USER_ADD', { type: 'GUILD_SCHEDULED_EVENT_USER_ADD', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
         break
       }
       case 'GUILD_SCHEDULED_EVENT_USER_REMOVE': {
-        this.dispatch('GUILD_SCHEDULED_EVENT_USER_REMOVE', { type: 'GUILD_SCHEDULED_EVENT_USER_REMOVE', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
+        void this.dispatch('GUILD_SCHEDULED_EVENT_USER_REMOVE', { type: 'GUILD_SCHEDULED_EVENT_USER_REMOVE', guildScheduledEventId: d.guild_scheduled_event_id as string, userId: d.user_id as string, guildId: d.guild_id as string })
         break
       }
 
       case 'AUTO_MODERATION_RULE_CREATE': {
         const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.set(rule.id, rule)
-        this.dispatch('AUTO_MODERATION_RULE_CREATE', { type: 'AUTO_MODERATION_RULE_CREATE', rule })
+        void this.dispatch('AUTO_MODERATION_RULE_CREATE', { type: 'AUTO_MODERATION_RULE_CREATE', rule })
         break
       }
       case 'AUTO_MODERATION_RULE_UPDATE': {
         const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.set(rule.id, rule)
-        this.dispatch('AUTO_MODERATION_RULE_UPDATE', { type: 'AUTO_MODERATION_RULE_UPDATE', rule })
+        void this.dispatch('AUTO_MODERATION_RULE_UPDATE', { type: 'AUTO_MODERATION_RULE_UPDATE', rule })
         break
       }
       case 'AUTO_MODERATION_RULE_DELETE': {
         const rule = buildAutoModRule(d as Record<string, unknown>)
         this.cache.autoModRules.delete(rule.id)
-        this.dispatch('AUTO_MODERATION_RULE_DELETE', { type: 'AUTO_MODERATION_RULE_DELETE', rule })
+        void this.dispatch('AUTO_MODERATION_RULE_DELETE', { type: 'AUTO_MODERATION_RULE_DELETE', rule })
         break
       }
       case 'AUTO_MODERATION_ACTION_EXECUTION': {
-        this.dispatch('AUTO_MODERATION_ACTION_EXECUTION', {
+        void this.dispatch('AUTO_MODERATION_ACTION_EXECUTION', {
           type: 'AUTO_MODERATION_ACTION_EXECUTION',
           guildId: d.guild_id as string,
           action: d.action as import('../types/automod/index.ts').AutoModerationAction,
@@ -1102,18 +1101,18 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'INTEGRATION_CREATE': {
         const integration = buildIntegration(d as Record<string, unknown>)
         this.cache.integrations.set(integration.id, integration)
-        this.dispatch('INTEGRATION_CREATE', { type: 'INTEGRATION_CREATE', guildId: d.guild_id as string, integration })
+        void this.dispatch('INTEGRATION_CREATE', { type: 'INTEGRATION_CREATE', guildId: d.guild_id as string, integration })
         break
       }
       case 'INTEGRATION_UPDATE': {
         const integration = buildIntegration(d as Record<string, unknown>)
         this.cache.integrations.set(integration.id, integration)
-        this.dispatch('INTEGRATION_UPDATE', { type: 'INTEGRATION_UPDATE', guildId: d.guild_id as string, integration })
+        void this.dispatch('INTEGRATION_UPDATE', { type: 'INTEGRATION_UPDATE', guildId: d.guild_id as string, integration })
         break
       }
       case 'INTEGRATION_DELETE': {
         this.cache.integrations.delete(d.id as string)
-        this.dispatch('INTEGRATION_DELETE', {
+        void this.dispatch('INTEGRATION_DELETE', {
           type: 'INTEGRATION_DELETE',
           id: d.id as string,
           guildId: d.guild_id as string,

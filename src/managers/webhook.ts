@@ -6,6 +6,7 @@ import type { Webhook } from '../types/webhook/index.js'
 import type { Message, WebhookMessageCreateOptions } from '../types/message/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class WebhookManager {
 
@@ -14,6 +15,14 @@ export class WebhookManager {
     protected store: TongueStore
   ) {}
 
+  private _buildWebhook(raw: unknown): Webhook {
+    return buildWebhook(raw as Record<string, unknown>)
+  }
+
+  private _buildWebhooks(raw: unknown[]): Webhook[] {
+    return raw.map(webhook => this._buildWebhook(webhook))
+  }
+
   async fetch(webhookId: string, token?: string): Promise<ChameleonAPIResult<Webhook>> {
 
     const url = token ? `/webhooks/${webhookId}/${token}` : `/webhooks/${webhookId}`
@@ -21,7 +30,7 @@ export class WebhookManager {
     
     if (!result.ok) return result as ChameleonAPIResult<never>
     
-    return { ok: true, data: buildWebhook(result.data as Record<string, unknown>) }
+    return { ok: true, data: this._buildWebhook(result.data) }
   }
 
   async fetchByChannel(channelId: string): Promise<ChameleonAPIResult<Webhook[]>> {
@@ -30,7 +39,7 @@ export class WebhookManager {
     
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    const webhooks = (result.data as Record<string, unknown>[]).map(w => buildWebhook(w))
+    const webhooks = this._buildWebhooks(result.data)
 
     return { ok: true, data: webhooks }
   }
@@ -41,46 +50,34 @@ export class WebhookManager {
     
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    const webhooks = (result.data as Record<string, unknown>[]).map(w => buildWebhook(w))
+    const webhooks = this._buildWebhooks(result.data)
     
     return { ok: true, data: webhooks }
   }
 
   async create(channelId: string, payload: { name: string, avatar?: string | null }, reason?: string): Promise<ChameleonAPIResult<Webhook>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
-    const result = await this.rest.post<unknown>(`/channels/${channelId}/webhooks`, toSnakeCase(payload), headers)
+    const result = await this.rest.post<unknown>(`/channels/${channelId}/webhooks`, toSnakeCase(payload), createAuditLogHeaders(reason))
     
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    return { ok: true, data: buildWebhook(result.data as Record<string, unknown>) }
+    return { ok: true, data: this._buildWebhook(result.data) }
   }
 
   async edit(webhookId: string, payload: { name?: string, avatar?: string | null, channelId?: string }, token?: string, reason?: string): Promise<ChameleonAPIResult<Webhook>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
     const url = token ? `/webhooks/${webhookId}/${token}` : `/webhooks/${webhookId}`
-    const result = await this.rest.patch<unknown>(url, toSnakeCase(payload), headers)
+    const result = await this.rest.patch<unknown>(url, toSnakeCase(payload), createAuditLogHeaders(reason))
 
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    return { ok: true, data: buildWebhook(result.data as Record<string, unknown>) }
+    return { ok: true, data: this._buildWebhook(result.data) }
   }
 
   async delete(webhookId: string, token?: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
     const url = token ? `/webhooks/${webhookId}/${token}` : `/webhooks/${webhookId}`
-    const result = await this.rest.delete(url, headers)
+    const result = await this.rest.delete(url, createAuditLogHeaders(reason))
     
     return result as ChameleonAPIResult<void>
   }

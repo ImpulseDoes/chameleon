@@ -4,6 +4,7 @@ import { buildStageInstance } from '../builders/index.js'
 import type { StageInstance } from '../types/stage/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class StageInstanceManager {
 
@@ -12,60 +13,51 @@ export class StageInstanceManager {
     protected store: TongueStore
   ) {}
 
+  private _cacheStage(raw: Record<string, unknown>): StageInstance {
+
+    const stage = buildStageInstance(raw)
+    
+    this.store.stageInstances.set(stage.id, stage)
+    return stage
+  }
+
+  private _findCachedByChannelId(channelId: string): StageInstance | undefined {
+    return [...this.store.stageInstances.values()].find(stage => stage.channelId === channelId)
+  }
+
   async fetch(channelId: string): Promise<ChameleonAPIResult<StageInstance>> {
 
-    const cached = Array.from(this.store.stageInstances.values()).find(s => s.channelId === channelId)
+    const cached = this._findCachedByChannelId(channelId)
     if (cached) return { ok: true, data: cached }
 
     const result = await this.rest.get<unknown>(`/stage-instances/${channelId}`)
     if (!result.ok) return result as ChameleonAPIResult<never>
-
-    const stage = buildStageInstance(result.data as Record<string, unknown>)
-    this.store.stageInstances.set(stage.id, stage)
     
-    return { ok: true, data: stage }
+    return { ok: true, data: this._cacheStage(result.data as Record<string, unknown>) }
   }
 
   async create(payload: Partial<StageInstance>, reason?: string): Promise<ChameleonAPIResult<StageInstance>> {
 
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
-    const result = await this.rest.post<unknown>(`/stage-instances`, toSnakeCase(payload), headers)
+    const result = await this.rest.post<unknown>(`/stage-instances`, toSnakeCase(payload), createAuditLogHeaders(reason))
     if (!result.ok) return result as ChameleonAPIResult<never>
-
-    const stage = buildStageInstance(result.data as Record<string, unknown>)
-    this.store.stageInstances.set(stage.id, stage)
     
-    return { ok: true, data: stage }
+    return { ok: true, data: this._cacheStage(result.data as Record<string, unknown>) }
   }
 
   async edit(channelId: string, payload: Partial<StageInstance>, reason?: string): Promise<ChameleonAPIResult<StageInstance>> {
 
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
-    const result = await this.rest.patch<unknown>(`/stage-instances/${channelId}`, toSnakeCase(payload), headers)
-
+    const result = await this.rest.patch<unknown>(`/stage-instances/${channelId}`, toSnakeCase(payload), createAuditLogHeaders(reason))
     if (!result.ok) return result as ChameleonAPIResult<never>
-
-    const stage = buildStageInstance(result.data as Record<string, unknown>)
-    this.store.stageInstances.set(stage.id, stage)
     
-    return { ok: true, data: stage }
+    return { ok: true, data: this._cacheStage(result.data as Record<string, unknown>) }
   }
 
   async delete(channelId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
-
-    const result = await this.rest.delete(`/stage-instances/${channelId}`, headers)
+    const result = await this.rest.delete(`/stage-instances/${channelId}`, createAuditLogHeaders(reason))
     
     if (result.ok) {
-      const cached = Array.from(this.store.stageInstances.values()).find(s => s.channelId === channelId)
+      const cached = this._findCachedByChannelId(channelId)
       if (cached) this.store.stageInstances.delete(cached.id)
     }
     

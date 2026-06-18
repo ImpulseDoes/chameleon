@@ -5,7 +5,7 @@ import type { Integration } from '../types/integration/index.js'
 import type { Emoji, Sticker, StickerItem } from '../types/expressions/index.js'
 import type { Voice } from '../types/voice/index.js'
 import type { Entitlement } from '../types/entitlement/index.js'
-import type { Interaction, InteractionData } from '../types/interaction/index.js'
+import type { Interaction, InteractionData, ApplicationCommandData, MessageComponentData, ModalSubmitData, ResolvedData, ApplicationCommandInteractionDataOption } from '../types/interaction/index.js'
 import type { User } from '../types/user/index.js'
 import type { Member, Role } from '../types/guild/index.js'
 import type { Invite } from '../types/invite/index.js'
@@ -231,18 +231,18 @@ export function buildEntitlement(raw: Record<string, unknown>): Entitlement {
   }
 }
 
-export function buildInteraction(raw: Record<string, unknown>, cache?: TongueStore): Interaction {
+function buildInteractionUser(raw: Record<string, unknown>, cache?: TongueStore): { user?: User, member?: Member } {
 
   let user: User | undefined
   let member: Member | undefined
 
   if (raw.member && raw.guild_id) {
-
     const memberRaw = raw.member as Record<string, unknown>
 
     if (cache) {
       member = buildMember(memberRaw, raw.guild_id as string, cache)
     }
+
     if (memberRaw.user) {
       user = buildUser(memberRaw.user as Record<string, unknown>)
     }
@@ -252,47 +252,61 @@ export function buildInteraction(raw: Record<string, unknown>, cache?: TongueSto
     user = buildUser(raw.user as Record<string, unknown>)
   }
 
-  let data: InteractionData | undefined
-
-  if (raw.data) {
-  
-    const rawData = raw.data as Record<string, unknown>
-
-    if (rawData.components !== undefined && rawData.custom_id !== undefined) {
-  
-      data = {
-        customId: (rawData.custom_id as string) ?? '',
-        components: rawData.components as import('../types/components/index.js').MessageComponent[],
-      } as InteractionData
-  
-    } else if (rawData.custom_id !== undefined || rawData.component_type !== undefined) {
-  
-      data = {
-        customId: (rawData.custom_id as string) ?? '',
-        componentType: (rawData.component_type as number) ?? 0,
-        ...(rawData.values !== undefined ? { values: rawData.values as string[] } : {}),
-        ...(rawData.resolved !== undefined ? { resolved: rawData.resolved as import('../types/interaction/index.js').ResolvedData } : {}),
-      } as InteractionData
-  
-    } else if (rawData.name !== undefined || rawData.options !== undefined || rawData.resolved !== undefined) {
-  
-      data = {
-        ...(rawData.id !== undefined ? { id: rawData.id as string } : {}),
-        ...(rawData.name !== undefined ? { name: rawData.name as string } : {}),
-        ...(rawData.type !== undefined ? { type: rawData.type as number } : {}),
-        ...(rawData.resolved !== undefined ? { resolved: rawData.resolved as import('../types/interaction/index.js').ResolvedData } : {}),
-        ...(rawData.options !== undefined ? { options: rawData.options as import('../types/interaction/index.js').ApplicationCommandInteractionDataOption[] } : {}),
-        ...(rawData.guild_id !== undefined ? { guildId: rawData.guild_id as string } : {}),
-        ...(rawData.target_id !== undefined ? { targetId: rawData.target_id as string } : {}),
-  
-      } as InteractionData
-  
-    } else {
-  
-      data = rawData as unknown as InteractionData
-  
-    }
+  return {
+    ...(user ? { user } : {}),
+    ...(member ? { member } : {}),
   }
+}
+
+function buildApplicationCommandData(raw: Record<string, unknown>): ApplicationCommandData {
+  return {
+    ...(raw.id !== undefined ? { id: raw.id as string } : {}),
+    ...(raw.name !== undefined ? { name: raw.name as string } : {}),
+    ...(raw.type !== undefined ? { type: raw.type as number } : {}),
+    ...(raw.resolved !== undefined ? { resolved: raw.resolved as ResolvedData } : {}),
+    ...(raw.options !== undefined ? { options: raw.options as ApplicationCommandInteractionDataOption[] } : {}),
+    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
+    ...(raw.target_id !== undefined ? { targetId: raw.target_id as string } : {}),
+  } as ApplicationCommandData
+}
+
+function buildMessageComponentData(raw: Record<string, unknown>): MessageComponentData {
+  return {
+    customId: (raw.custom_id as string) ?? '',
+    componentType: (raw.component_type as number) ?? 0,
+    ...(raw.values !== undefined ? { values: raw.values as string[] } : {}),
+    ...(raw.resolved !== undefined ? { resolved: raw.resolved as ResolvedData } : {}),
+  }
+}
+
+function buildModalSubmitData(raw: Record<string, unknown>): ModalSubmitData {
+  return {
+    customId: (raw.custom_id as string) ?? '',
+    components: (raw.components as import('../types/components/index.js').MessageComponent[]) ?? [],
+  }
+}
+
+function buildInteractionData(raw: Record<string, unknown>): InteractionData {
+  
+  if (raw.components !== undefined && raw.custom_id !== undefined) {
+    return buildModalSubmitData(raw)
+  }
+
+  if (raw.custom_id !== undefined || raw.component_type !== undefined) {
+    return buildMessageComponentData(raw)
+  }
+
+  if (raw.name !== undefined || raw.options !== undefined || raw.resolved !== undefined) {
+    return buildApplicationCommandData(raw)
+  }
+
+  return raw as unknown as InteractionData
+}
+
+export function buildInteraction(raw: Record<string, unknown>, cache?: TongueStore): Interaction {
+
+  const { user, member } = buildInteractionUser(raw, cache)
+  const data = raw.data ? buildInteractionData(raw.data as Record<string, unknown>) : undefined
 
   return {
     id: raw.id as string,

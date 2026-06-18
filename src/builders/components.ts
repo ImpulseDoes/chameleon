@@ -15,6 +15,17 @@ type ComponentDefinition =
   | (MentionableSelectDef & { type: 'mentionable_select' })
   | (ChannelSelectDef & { type: 'channel_select' })
 
+type BuildableComponent = { build(): MessageComponent }
+type JSONComponent = { toJSON(): Record<string, unknown> }
+
+function isBuildableComponent(component: unknown): component is BuildableComponent {
+  return typeof component === 'object' && component !== null && typeof (component as BuildableComponent).build === 'function'
+}
+
+function isJSONComponent(component: unknown): component is JSONComponent {
+  return typeof component === 'object' && component !== null && typeof (component as JSONComponent).toJSON === 'function'
+}
+
 function serializeEmoji(emoji?: Partial<Emoji>) {
 
   if (!emoji) return undefined
@@ -168,14 +179,14 @@ export class SelectMenuBuilder {
 
 export class TextInputBuilder {
 
-  private data: Partial<MessageComponent> = {
+  private data: Partial<MessageComponent> & {
+    minLength?: number
+    maxLength?: number
+    required?: boolean
+    value?: string
+  } = {
     type: ComponentType.TEXT_INPUT,
   }
-
-  private _minLength?: number
-  private _maxLength?: number
-  private _required?: boolean
-  private _value?: string
 
   setCustomId(id: string): this {
     this.data.customId = id
@@ -198,32 +209,28 @@ export class TextInputBuilder {
   }
 
   setMinLength(length: number): this {
-    this._minLength = length
+    this.data.minLength = length
     return this
   }
 
   setMaxLength(length: number): this {
-    this._maxLength = length
+    this.data.maxLength = length
     return this
   }
 
   setRequired(required = true): this {
-    this._required = required
+    this.data.required = required
     return this
   }
 
   setValue(value: string): this {
-    this._value = value
+    this.data.value = value
     return this
   }
 
   build(): MessageComponent {
     return {
       ...this.data,
-      minLength: this._minLength,
-      maxLength: this._maxLength,
-      required: this._required,
-      value: this._value,
     } as MessageComponent
   }
 
@@ -234,10 +241,10 @@ export class TextInputBuilder {
       style: this.data.style,
       label: this.data.label,
       placeholder: this.data.placeholder,
-      min_length: this._minLength,
-      max_length: this._maxLength,
-      required: this._required,
-      value: this._value,
+      min_length: this.data.minLength,
+      max_length: this.data.maxLength,
+      required: this.data.required,
+      value: this.data.value,
     }
   }
 }
@@ -334,15 +341,7 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-      components: this._components.map(component => {
-        if (
-          component &&
-          typeof (component as unknown as { build(): MessageComponent }).build === 'function'
-        ) {
-          return (component as unknown as { build(): MessageComponent }).build()
-        }
-        return component
-      }),
+      components: this._components.map(component => isBuildableComponent(component) ? component.build() : component),
     }
   }
 
@@ -350,18 +349,7 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-
-      components: this._components.map(component => {
-
-        if (
-          component &&
-          typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function'
-        ) {
-          return (component as { toJSON(): Record<string, unknown> }).toJSON()
-        }
-
-        return component
-      }),
+      components: this._components.map(component => isJSONComponent(component) ? component.toJSON() : component),
     }
   }
 }
@@ -430,12 +418,12 @@ export function serializeComponent(component: MessageComponent | { build?(): Mes
     }
   }
   
-  if (typeof (component as { toJSON?(): Record<string, unknown> }).toJSON === 'function') {
-    return (component as { toJSON(): Record<string, unknown> }).toJSON()
+  if (isJSONComponent(component)) {
+    return component.toJSON()
   }
   
-  if (typeof (component as { build?(): MessageComponent }).build === 'function') {
-    return toSnakeCase((component as { build(): MessageComponent }).build()) as Record<string, unknown>
+  if (isBuildableComponent(component)) {
+    return toSnakeCase(component.build()) as Record<string, unknown>
   }
   
   return toSnakeCase(component) as Record<string, unknown>

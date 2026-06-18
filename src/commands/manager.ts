@@ -55,9 +55,45 @@ function isSubcommandGroup(candidate: RuntimeSubcommand | RuntimeSubcommandGroup
   return 'subcommands' in candidate
 }
 
+function mapCommandOptionType(type: string): number {
+  switch (type) {
+    case 'string': return 3
+    case 'integer': return 4
+    case 'boolean': return 5
+    case 'user': return 6
+    case 'channel': return 7
+    case 'role': return 8
+    case 'mentionable': return 9
+    case 'number': return 10
+    case 'attachment': return 11
+    default: return 3
+  }
+}
+
+function serializeCommandOption(name: string, definition: RuntimeOptionDef): Record<string, unknown> {
+  return {
+    type: mapCommandOptionType(definition.type),
+    name,
+    description: definition.description,
+    required: definition.required,
+    choices: definition.choices,
+    channel_types: definition.channelTypes,
+    min_value: definition.min,
+    max_value: definition.max,
+    min_length: definition.minLength,
+    max_length: definition.maxLength
+  }
+}
+
+function serializeCommandOptions(options?: Record<string, RuntimeOptionDef>): Record<string, unknown>[] {
+
+  if (!options) return []
+  
+  return Object.entries(options).map(([name, definition]) => serializeCommandOption(name, definition))
+}
+
 export class CommandManager {
 
-  private _commands = new Map<string, AnyCommandDef>()
   private _globalCommands = new Map<string, AnyCommandDef>()
   private _guildCommands = new Map<string, Map<string, AnyCommandDef>>()
   private _modals: ModalHandler[] = []
@@ -74,7 +110,6 @@ export class CommandManager {
     const normalized = commands.map(cmd => this._normalizeCommand(cmd))
 
     for (const cmd of normalized) {
-      this._commands.set(cmd.name, cmd)
       this._globalCommands.set(cmd.name, cmd)
     }
 
@@ -87,7 +122,6 @@ export class CommandManager {
     const guildCommands = this._guildCommands.get(guildId) ?? new Map<string, AnyCommandDef>()
 
     for (const cmd of normalized) {
-      this._commands.set(cmd.name, cmd)
       guildCommands.set(cmd.name, cmd)
     }
 
@@ -198,22 +232,6 @@ export class CommandManager {
   }
 
   private _transformCommand(cmd: AnyCommandDef) {
-
-    const mapType = (t: string) => {
-      switch(t) {
-        case 'string': return 3
-        case 'integer': return 4
-        case 'boolean': return 5
-        case 'user': return 6
-        case 'channel': return 7
-        case 'role': return 8
-        case 'mentionable': return 9
-        case 'number': return 10
-        case 'attachment': return 11
-        default: return 3
-      }
-    }
-
     const options: unknown[] = []
 
     if (cmd.subcommands) {
@@ -225,31 +243,13 @@ export class CommandManager {
         if (isSubcommandGroup(candidate)) {
 
           const nested = Object.entries(candidate.subcommands).map(([nestedName, nestedDefRaw]) => {
-          
             const nestedDef = nestedDefRaw as RuntimeSubcommand
-            const nestedOptions = nestedDef.options ? Object.entries(nestedDef.options).map(([optName, optDefRaw]) => {
-          
-              const optDef = optDefRaw as RuntimeOptionDef
-          
-              return {
-                type: mapType(optDef.type),
-                name: optName,
-                description: optDef.description,
-                required: optDef.required,
-                choices: optDef.choices,
-                channel_types: optDef.channelTypes,
-                min_value: optDef.min,
-                max_value: optDef.max,
-                min_length: optDef.minLength,
-                max_length: optDef.maxLength
-              }
-            }) : []
 
             return {
               type: COMMAND_OPTION_TYPES.SUB_COMMAND,
               name: nestedName,
               description: nestedDef.description,
-              options: nestedOptions
+              options: serializeCommandOptions(nestedDef.options as Record<string, RuntimeOptionDef> | undefined)
             }
           })
 
@@ -263,29 +263,7 @@ export class CommandManager {
         }
 
         const subDef = candidate as RuntimeSubcommand
-
-        const subOpts: unknown[] = []
-
-        if (subDef.options) {
-
-          for (const [optName, optDefRaw] of Object.entries(subDef.options)) {
-          
-            const optDef = optDefRaw as RuntimeOptionDef
-          
-            subOpts.push({
-               type: mapType(optDef.type),
-               name: optName,
-               description: optDef.description,
-               required: optDef.required,
-               choices: optDef.choices,
-               channel_types: optDef.channelTypes,
-               min_value: optDef.min,
-               max_value: optDef.max,
-               min_length: optDef.minLength,
-               max_length: optDef.maxLength
-             })
-          }
-        }
+        const subOpts = serializeCommandOptions(subDef.options as Record<string, RuntimeOptionDef> | undefined)
         options.push({
           type: COMMAND_OPTION_TYPES.SUB_COMMAND,
           name: subName,
@@ -294,24 +272,7 @@ export class CommandManager {
         })
       }
     } else if (cmd.options) {
-
-      for (const [optName, optDefRaw] of Object.entries(cmd.options)) {
-      
-        const optDef = optDefRaw as RuntimeOptionDef
-      
-        options.push({
-           type: mapType(optDef.type),
-           name: optName,
-           description: optDef.description,
-           required: optDef.required,
-           choices: optDef.choices,
-           channel_types: optDef.channelTypes,
-           min_value: optDef.min,
-           max_value: optDef.max,
-           min_length: optDef.minLength,
-           max_length: optDef.maxLength
-        })
-      }
+      options.push(...serializeCommandOptions(cmd.options as Record<string, RuntimeOptionDef>))
     }
 
     return {
@@ -343,7 +304,7 @@ export class CommandManager {
     const name = data.name
     if (!name) return
 
-    const command = this._commands.get(name)
+    const command = this._resolveCommand(name, raw.guild_id as string | undefined)
     if (!command) return
 
     const parsedOptions: Record<string, unknown> = {}
@@ -447,9 +408,14 @@ export class CommandManager {
   private async _handleModalInteraction(raw: Record<string, unknown>, data: InteractionData) {
 
     const customId = data.custom_id
-    const handler = this._modals.find(h => 
-      typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId as string)
-    )
+    const handler = this._modals.find(h => {
+
+      if (typeof h.customId === 'string') return h.customId === customId
+
+      h.customId.lastIndex = 0
+
+      return h.customId.test(customId as string)
+    })
     
     if (!handler) return
 
@@ -469,5 +435,17 @@ export class CommandManager {
     } catch (err) {
       console.error(`[Chameleon] Error executing modal ${customId}:`, err)
     }
+  }
+
+  private _resolveCommand(name: string, guildId?: string): AnyCommandDef | undefined {
+ 
+    if (guildId) {
+      
+      const guildCommand = this._guildCommands.get(guildId)?.get(name)
+      
+      if (guildCommand) return guildCommand
+    }
+
+    return this._globalCommands.get(name)
   }
 }

@@ -306,4 +306,83 @@ describe('CommandManager deployment', () => {
 
     expect(called).toBe(true)
   })
+
+  it('prefers guild-specific commands over global commands with the same name', async () => {
+
+    const { Client } = await import('../src/client/client.ts')
+    const client = new Client({ token: 'test', intents: [] })
+
+    let globalCalls = 0
+    let guildCalls = 0
+
+    client.commands.register(defineCommand({
+      name: 'ping',
+      description: 'Global ping',
+      execute: async () => {
+        globalCalls++
+      }
+    }))
+
+    client.commands.registerGuild('guild-1', defineCommand({
+      name: 'ping',
+      description: 'Guild ping',
+      execute: async () => {
+        guildCalls++
+      }
+    }))
+
+    await client.commands.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      type: 2,
+      guild_id: 'guild-1',
+      data: { name: 'ping' },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    await client.commands.handleInteraction({
+      id: 'i2',
+      token: 't2',
+      type: 2,
+      guild_id: 'guild-2',
+      data: { name: 'ping' },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(guildCalls).toBe(1)
+    expect(globalCalls).toBe(1)
+  })
+
+  it('reuses regex modal handlers safely across multiple interactions', async () => {
+
+    const { Client } = await import('../src/client/client.ts')
+    const client = new Client({ token: 'test', intents: [] })
+
+    let calls = 0
+
+    client.commands.registerModal({
+      customId: /^modal:/g,
+      execute: async () => {
+        calls++
+      }
+    })
+
+    await client.commands.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      type: 5,
+      data: { custom_id: 'modal:1', components: [] },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    await client.commands.handleInteraction({
+      id: 'i2',
+      token: 't2',
+      type: 5,
+      data: { custom_id: 'modal:2', components: [] },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(calls).toBe(2)
+  })
 })
