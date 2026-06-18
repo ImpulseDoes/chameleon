@@ -1,9 +1,9 @@
 import type { Client } from '../client/client.js'
 import type { AnyCommandDef, AnyCommandInput, Subcommand, SubcommandGroup } from './command.js'
 import type { ModalDef, ResolveModalFields, AnyModalField } from '../components/define.js'
+import type { ComponentContext } from '../components/context.js'
 import { CommandContext } from './context.js'
 import { ModalContext } from './interactions.js'
-import { ComponentContext } from '../components/context.js'
 import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
 import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
 import type { OptionDef, OptionType } from './options.js'
@@ -58,9 +58,13 @@ function isSubcommandGroup(candidate: RuntimeSubcommand | RuntimeSubcommandGroup
 export class CommandManager {
 
   private _commands = new Map<string, AnyCommandDef>()
-  private _components: ComponentHandler[] = []
+  private _globalCommands = new Map<string, AnyCommandDef>()
+  private _guildCommands = new Map<string, Map<string, AnyCommandDef>>()
   private _modals: ModalHandler[] = []
   private _client: Client
+  private _pendingGlobalDeploy = false
+  private _pendingGuildDeploys = new Set<string>()
+  private _readyDeployQueued = false
 
   constructor(client: Client) {
     this._client = client
@@ -71,23 +75,28 @@ export class CommandManager {
 
     for (const cmd of normalized) {
       this._commands.set(cmd.name, cmd)
+      this._globalCommands.set(cmd.name, cmd)
     }
 
-    this._deployCommands(normalized).catch(console.error)
+    this._scheduleDeploy().catch(console.error)
   }
 
   registerGuild(guildId: string, ...commands: AnyCommandInput[]) {
+    
     const normalized = commands.map(cmd => this._normalizeCommand(cmd))
+    const guildCommands = this._guildCommands.get(guildId) ?? new Map<string, AnyCommandDef>()
 
     for (const cmd of normalized) {
       this._commands.set(cmd.name, cmd)
+      guildCommands.set(cmd.name, cmd)
     }
 
-    this._deployCommands(normalized, guildId).catch(console.error)
+    this._guildCommands.set(guildId, guildCommands)
+    this._scheduleDeploy(guildId).catch(console.error)
   }
 
   registerComponent(handler: ComponentHandler) {
-    this._components.push(handler)
+    this._client.components.register(handler)
   }
 
   registerModal<F extends ReadonlyArray<AnyModalField>>(handler: ModalDef<F> | ModalHandler<ResolveModalFields<F>>) {
@@ -129,20 +138,63 @@ export class CommandManager {
     }
   }
 
-  private async _deployCommands(commands: AnyCommandDef[], guildId?: string) {
+  private async _scheduleDeploy(guildId?: string): Promise<void> {
+
+    if (this._client.user?.id) {
+      await this._deployCommands(guildId)
+      return
+    }
+
+    if (guildId) {
+      this._pendingGuildDeploys.add(guildId)
+    } else {
+      this._pendingGlobalDeploy = true
+    }
+
+    if (this._readyDeployQueued) return
+
+    this._readyDeployQueued = true
+
+    this._client.once('READY', () => {
+      this._flushPendingDeploys().catch(console.error)
+    })
+  }
+
+  private async _flushPendingDeploys(): Promise<void> {
+
+    this._readyDeployQueued = false
+
+    const shouldDeployGlobal = this._pendingGlobalDeploy
+    const guildIds = [...this._pendingGuildDeploys]
+
+    this._pendingGlobalDeploy = false
+    this._pendingGuildDeploys.clear()
+
+    if (shouldDeployGlobal) {
+      await this._deployCommands()
+    }
+
+    for (const guildId of guildIds) {
+      await this._deployCommands(guildId)
+    }
+  }
+
+  private async _deployCommands(guildId?: string): Promise<void> {
+
+    const applicationId = this._client.user?.id
+    
+    if (!applicationId) return
+
+    const commands = guildId
+      ? [...(this._guildCommands.get(guildId)?.values() ?? [])]
+      : [...this._globalCommands.values()]
 
     const payload = commands.map(c => this._transformCommand(c))
+    const url = guildId
+      ? `/applications/${applicationId}/guilds/${guildId}/commands`
+      : `/applications/${applicationId}/commands`
 
-    // If client is already ready, deploy immediately
-    if (this._client.user?.id) {
-       const url = guildId ? `/applications/${this._client.user.id}/guilds/${guildId}/commands` : `/applications/${this._client.user.id}/commands`
-       await this._client.rest.put(url, payload)
-    } else {
-      this._client.on('READY', async () => {
-         const url = guildId ? `/applications/${this._client.user!.id}/guilds/${guildId}/commands` : `/applications/${this._client.user!.id}/commands`
-         await this._client.rest.put(url, payload)
-      })
-    }
+    await this._client.rest.put(url, payload)
   }
 
   private _transformCommand(cmd: AnyCommandDef) {
@@ -284,7 +336,7 @@ export class CommandManager {
     const data = raw.data as InteractionData | undefined
     if (!data) return
 
-    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._handleComponentInteraction(raw, data)
+    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._client.components.handleInteraction(raw)
     if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw, data)
     if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND) return
 
@@ -362,40 +414,34 @@ export class CommandManager {
     )
 
     if (targetExecute) {
+    
+      const cancelAutoDefer = raw.type === INTERACTION_TYPES.APPLICATION_COMMAND
+        ? this._scheduleAutoDefer(ctx)
+        : () => {}
+
+
       try {
         await (targetExecute as (ctx: CommandContext<Record<string, unknown>>) => void | Promise<void>)(ctx)
       } catch (err) {
         console.error(`[Chameleon] Error executing command ${name}:`, err)
+      } finally {
+        cancelAutoDefer()
       }
     }
   }
 
-  private async _handleComponentInteraction(raw: Record<string, unknown>, data: InteractionData) {
+  private _scheduleAutoDefer(ctx: CommandContext<Record<string, unknown>>): () => void {
 
-    const customId = data.custom_id
-    const handler = this._components.find(h => {
-      if (!h.customId) return false
-      return typeof h.customId === 'string' ? h.customId === customId : h.customId.test(customId as string)
-    })
+    const autoDefer = this._client.autoDefer
 
-    if (!handler) return
+    if (!autoDefer) return () => {}
 
-    const member = raw.member as Record<string, unknown> | undefined
-    const userRaw = member?.user ?? raw.user
-    const user = buildUser(userRaw as Record<string, unknown>)
-    const ctx = new ComponentContext(
-      this._client,
-      raw,
-      user,
-      raw.guild_id ? resolveGuild(raw.guild_id as string, this._client) : undefined,
-      raw.channel_id ? resolveChannel(raw.channel_id as string, this._client) : undefined
-    )
+    const timer = setTimeout(() => {
+      if (ctx.replied || ctx.deferred) return
+      ctx.defer({ ephemeral: autoDefer.ephemeral }).catch(() => {})
+    }, autoDefer.timeout)
 
-    try {
-      await handler.execute?.(ctx)
-    } catch (err) {
-      console.error(`[Chameleon] Error executing component ${customId}:`, err)
-    }
+    return () => clearTimeout(timer)
   }
 
   private async _handleModalInteraction(raw: Record<string, unknown>, data: InteractionData) {

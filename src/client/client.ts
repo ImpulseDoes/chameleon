@@ -9,7 +9,7 @@ import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessa
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager } from '../managers/index.js'
-import type { ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
+import type { AutoDeferOptions, ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
 
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
 
@@ -41,8 +41,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public templates: TemplateManager
   public application: ApplicationManager
   public soundboard: SoundboardManager
+  public autoDefer: { timeout: number, ephemeral: boolean } | null
 
-  private listeners: Map<string, Array<(data: unknown) => void>> = new Map()
+  private listeners: Map<string, Array<(data: unknown) => unknown | Promise<unknown>>> = new Map()
   private middlewares: MiddlewareFn[] = []
 
   constructor(options: ClientOptions<TIntents>) {
@@ -52,6 +53,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.token = options.token
     this.intents = this.resolveIntents(options.intents)
     this.debug = options.debug ?? false
+    this.autoDefer = this.resolveAutoDefer(options.autoDefer)
 
     this.cache = new TongueStore(options.cache)
     this.rest = new ChameleonREST({ token: this.token })
@@ -110,6 +112,20 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.setupGateway()
   }
 
+  private resolveAutoDefer(options?: boolean | AutoDeferOptions): { timeout: number, ephemeral: boolean } | null {
+
+    if (options === false) return null
+
+    if (options === undefined || options === true) {
+      return { timeout: 1500, ephemeral: false }
+    }
+
+    return {
+      timeout: options.timeout ?? 1500,
+      ephemeral: options.ephemeral ?? false
+    }
+  }
+
   private resolveIntents(intents: IntentResolvable | IntentResolvable[]): number {
 
     if (!Array.isArray(intents)) {
@@ -136,13 +152,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   /**
    * register an event listener with full type-safety via discriminated unions
    */
-  public on<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
+  public on<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void | Promise<void>): this {
 
     if (!this.listeners.has(event)) {
       this.listeners.set(event, [])
     }
 
-    this.listeners.get(event)!.push(listener as (data: unknown) => void)
+    this.listeners.get(event)!.push(listener as (data: unknown) => unknown | Promise<unknown>)
 
     return this
   }
@@ -150,11 +166,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   /**
    * register a one-time event listener that automatically removes itself after the first call
    */
-  public once<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
+  public once<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void | Promise<void>): this {
 
-    const wrapper = (data: EventMap[K]): void => {
+    const wrapper = async (data: EventMap[K]): Promise<void> => {
       this.off(event, wrapper)
-      listener(data)
+      await listener(data)
     }
 
     ;(wrapper as unknown as Record<string, unknown>).__original = listener
@@ -165,12 +181,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   /**
    * remove an event listener
    */
-  public off<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void): this {
+  public off<K extends keyof EventMap>(event: K, listener: (data: EventMap[K]) => void | Promise<void>): this {
 
     const handlers = this.listeners.get(event)
     if (!handlers) return this
 
-    const castListener = listener as (data: unknown) => void
+    const castListener = listener as (data: unknown) => unknown | Promise<unknown>
     
     let index = handlers.indexOf(castListener)
 
@@ -261,42 +277,56 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   /**
    * dispatch an event through the middleware pipeline, then to listeners
    */
-  private dispatch<K extends keyof EventMap>(event: K, data: EventMap[K]): void {
+  private async dispatch<K extends keyof EventMap>(event: K, data: EventMap[K]): Promise<void> {
+    try {
 
-    if (this.middlewares.length === 0) {
-      this.emit(event, data)
-      return
-    }
-
-    let index = 0
-
-    const next = (): void => {
-      index++
-
-      if (index >= this.middlewares.length) {
-        this.emit(event, data)
+      if (this.middlewares.length === 0) {
+        await this.emit(event, data)
         return
       }
 
-      const mw = this.middlewares[index]
-      if (mw) mw(data, next)
-    }
+      let index = 0
 
-    const first = this.middlewares[0]
-    if (first) first(data, next)
+      const next = async (): Promise<void> => {
+
+        index++
+
+        if (index >= this.middlewares.length) {
+
+          await this.emit(event, data)
+          
+          return
+        }
+
+        const mw = this.middlewares[index]
+        if (mw) await mw(data, next)
+        
+      }
+
+      const first = this.middlewares[0]
+
+      if (first) await first(data, next)
+
+    } catch (error) {
+      console.error(`[Chameleon] Error in ${String(event)} middleware:`, error)
+    }
   }
 
   /**
    * emit to registered listeners
    */
-  private emit<K extends keyof EventMap>(event: K, data: EventMap[K]): void {
+  private async emit<K extends keyof EventMap>(event: K, data: EventMap[K]): Promise<void> {
 
     const handlers = this.listeners.get(event)
 
     if (!handlers) return
 
     for (const handler of handlers) {
-      handler(data)
+      try {
+        await handler(data)
+      } catch (error) {
+        console.error(`[Chameleon] Error in ${String(event)} listener:`, error)
+      }
     }
   }
 
@@ -332,12 +362,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             }
           }
         }
-        this.dispatch('READY', { type: 'READY' })
+        void this.dispatch('READY', { type: 'READY' })
         break
       }
 
       case 'RESUMED': {
-        this.dispatch('RESUMED', { type: 'RESUMED' })
+        void this.dispatch('RESUMED', { type: 'RESUMED' })
         break
       }
 
@@ -419,9 +449,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
               if (this.pendingChunks.has(guild.id)) {
                 this.pendingChunks.delete(guild.id)
                 if (reason) {
-                  this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason, partial: true })
+                  void this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason, partial: true })
                 } else {
-                  this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild, partial: true })
+                  void this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild, partial: true })
                 }
               }
             }, 15_000)
@@ -440,9 +470,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         } else {
 
           if (reason) {
-            this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason })
+            void this.dispatch('GUILD_AVAILABLE', { type: 'GUILD_AVAILABLE', guild, reason })
           } else {
-            this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild })
+            void this.dispatch('GUILD_CREATE', { type: 'GUILD_CREATE', guild })
           }
         }
         break
@@ -452,7 +482,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldGuild = this.cache.guilds.get(d.id as string)
         const guild = buildGuild(d)
         this.cache.guilds.set(guild.id, guild)
-        this.dispatch('GUILD_UPDATE', { type: 'GUILD_UPDATE', guild, ...(oldGuild ? { oldGuild } : {}) })
+        void this.dispatch('GUILD_UPDATE', { type: 'GUILD_UPDATE', guild, ...(oldGuild ? { oldGuild } : {}) })
         break
       }
 
@@ -463,10 +493,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         if (unavailable) {
           this.outageGuilds.add(guildId)
-          this.dispatch('GUILD_UNAVAILABLE', { type: 'GUILD_UNAVAILABLE', guildId })
+          void this.dispatch('GUILD_UNAVAILABLE', { type: 'GUILD_UNAVAILABLE', guildId })
         } else {
           this.cache.guilds.delete(guildId)
-          this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId })
+          void this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId })
         }
 
         break
@@ -475,7 +505,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'CHANNEL_CREATE': {
         const channel = buildChannel(d)
         this.cache.channels.set(channel.id, channel)
-        this.dispatch('CHANNEL_CREATE', { type: 'CHANNEL_CREATE', channel, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
+        void this.dispatch('CHANNEL_CREATE', { type: 'CHANNEL_CREATE', channel, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
         break
       }
 
@@ -483,19 +513,19 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldChannel = this.cache.channels.get(d.id as string)
         const channel = buildChannel(d)
         this.cache.channels.set(channel.id, channel)
-        this.dispatch('CHANNEL_UPDATE', { type: 'CHANNEL_UPDATE', channel, ...(oldChannel ? { oldChannel } : {}), ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
+        void this.dispatch('CHANNEL_UPDATE', { type: 'CHANNEL_UPDATE', channel, ...(oldChannel ? { oldChannel } : {}), ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
         break
       }
 
       case 'CHANNEL_DELETE': {
         const channelId = d.id as string
         this.cache.channels.delete(channelId)
-        this.dispatch('CHANNEL_DELETE', { type: 'CHANNEL_DELETE', channelId, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
+        void this.dispatch('CHANNEL_DELETE', { type: 'CHANNEL_DELETE', channelId, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
         break
       }
 
       case 'CHANNEL_PINS_UPDATE': {
-        this.dispatch('CHANNEL_PINS_UPDATE', {
+        void this.dispatch('CHANNEL_PINS_UPDATE', {
           type: 'CHANNEL_PINS_UPDATE',
           channelId: d.channel_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
@@ -507,7 +537,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'THREAD_CREATE': {
         const channel = buildChannel(d)
         this.cache.channels.set(channel.id, channel)
-        this.dispatch('THREAD_CREATE', { type: 'THREAD_CREATE', channel })
+        void this.dispatch('THREAD_CREATE', { type: 'THREAD_CREATE', channel })
         break
       }
 
@@ -515,7 +545,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldChannel = this.cache.channels.get(d.id as string)
         const channel = buildChannel(d)
         this.cache.channels.set(channel.id, channel)
-        this.dispatch('THREAD_UPDATE', { type: 'THREAD_UPDATE', channel, ...(oldChannel ? { oldChannel } : {}) })
+        void this.dispatch('THREAD_UPDATE', { type: 'THREAD_UPDATE', channel, ...(oldChannel ? { oldChannel } : {}) })
         break
       }
 
@@ -722,7 +752,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INTERACTION_CREATE': {
-        if (d.type === INTERACTION_TYPES.APPLICATION_COMMAND || d.type === INTERACTION_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE) {
+        if (d.type === INTERACTION_TYPES.APPLICATION_COMMAND) {
           this.commands.handleInteraction(d).catch(console.error)
         } else if (d.type === INTERACTION_TYPES.MESSAGE_COMPONENT) {
           this.components.handleInteraction(d).catch(console.error)
@@ -730,7 +760,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           this.commands.handleInteraction(d).catch(console.error)
         }
 
-        this.dispatch('INTERACTION_CREATE', {
+        void this.dispatch('INTERACTION_CREATE', {
           type: 'INTERACTION_CREATE',
           interaction: buildInteraction(d as Record<string, unknown>, this.cache)
         })

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { defineCommand, defineSubcommand } from '../src/commands/command.ts'
 import { opt } from '../src/commands/options.ts'
+import { CommandManager } from '../src/commands/manager.ts'
 
 describe('defineCommand', () => {
 
@@ -151,5 +152,158 @@ describe('opt (option builders)', () => {
     expect(o.choices).toHaveLength(2)
 
     expect(o.choices?.[0]?.value).toBe('red')
+  })
+})
+
+describe('CommandManager deployment', () => {
+
+  it('deploys the full global command set across multiple register calls', async () => {
+
+    const put = vi.fn().mockResolvedValue({ ok: true })
+    const client = {
+      user: { id: 'app-id' },
+      rest: { put },
+      once: vi.fn()
+    } as unknown as ConstructorParameters<typeof CommandManager>[0]
+
+    const manager = new CommandManager(client)
+
+    manager.register(defineCommand({
+      name: 'ping',
+      description: 'Ping',
+      execute: async () => {}
+    }))
+
+    manager.register(defineCommand({
+      name: 'echo',
+      description: 'Echo',
+      execute: async () => {}
+    }))
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(put).toHaveBeenCalledTimes(2)
+    expect(put).toHaveBeenLastCalledWith('/applications/app-id/commands', [
+      expect.objectContaining({ name: 'ping' }),
+      expect.objectContaining({ name: 'echo' })
+    ])
+  })
+
+  it('coalesces pre-ready registrations into one deploy per scope', async () => {
+
+    const put = vi.fn().mockResolvedValue({ ok: true })
+    let readyHandler: (() => void) | undefined
+
+    const client = {
+      user: null,
+      rest: { put },
+      once: vi.fn((event: string, handler: () => void) => {
+        if (event === 'READY') readyHandler = handler
+      })
+    } as unknown as ConstructorParameters<typeof CommandManager>[0]
+
+    const manager = new CommandManager(client)
+
+    manager.register(defineCommand({
+      name: 'ping',
+      description: 'Ping',
+      execute: async () => {}
+    }))
+
+    manager.register(defineCommand({
+      name: 'echo',
+      description: 'Echo',
+      execute: async () => {}
+    }))
+
+    expect(client.once).toHaveBeenCalledTimes(1)
+    expect(put).not.toHaveBeenCalled()
+
+    ;(client as { user: { id: string } | null }).user = { id: 'app-id' }
+    readyHandler?.()
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledWith('/applications/app-id/commands', [
+      expect.objectContaining({ name: 'ping' }),
+      expect.objectContaining({ name: 'echo' })
+    ])
+  })
+
+  it('auto-defers slow slash commands before Discord timeout', async () => {
+
+    vi.useFakeTimers()
+
+    try {
+      const post = vi.fn().mockResolvedValue({ ok: true })
+      let release: (() => void) | undefined
+
+      const client = {
+        user: { id: 'app-id' },
+        rest: { put: vi.fn().mockResolvedValue({ ok: true }), post },
+        once: vi.fn(),
+        autoDefer: { timeout: 1500, ephemeral: true },
+        cache: {
+          guilds: new Map(),
+          channels: new Map()
+        }
+      } as unknown as ConstructorParameters<typeof CommandManager>[0]
+
+      const manager = new CommandManager(client)
+
+      manager.register(defineCommand({
+        name: 'slow',
+        description: 'Slow command',
+        execute: async () => new Promise<void>(resolve => {
+          release = resolve
+        })
+      }))
+
+      const interactionPromise = manager.handleInteraction({
+        id: 'interaction',
+        token: 'token',
+        type: 2,
+        data: { name: 'slow' },
+        user: { id: 'user', username: 'tester' }
+      })
+
+      await vi.advanceTimersByTimeAsync(1500)
+
+      expect(post).toHaveBeenCalledWith('/interactions/interaction/token/callback', {
+        type: 5,
+        data: { flags: 64 }
+      })
+
+      release?.()
+      await interactionPromise
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('registerComponent wires handlers into the runtime component manager', async () => {
+
+    const { Client } = await import('../src/client/client.ts')
+    const client = new Client({ token: 'test', intents: [] })
+    let called = false
+
+    client.commands.registerComponent({
+      customId: 'btn1',
+      execute: async () => {
+        called = true
+      }
+    })
+
+    await client.components.handleInteraction({
+      id: 'i1',
+      token: 't1',
+      data: { custom_id: 'btn1' },
+      user: { id: 'u1', username: 'john' }
+    })
+
+    expect(called).toBe(true)
   })
 })

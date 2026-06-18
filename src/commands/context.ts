@@ -99,30 +99,44 @@ export class BaseInteractionContext {
   async reply(payload: InteractionReplyOptions): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
-    
-    const { data, files } = this._resolvePayload(payload)
-    const body = {
-      type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
-      data
-    }
-
-    const result = files && files.length > 0
-      ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
-      : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
-    this._assertOk(result, 'reply')
     this._replied = true
+    
+    try {
+
+      const { data, files } = this._resolvePayload(payload)
+      const body = {
+        type: INTERACTION_CALLBACK_TYPES.CHANNEL_MESSAGE_WITH_SOURCE,
+        data
+      }
+
+      const result = files && files.length > 0
+        ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
+        : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
+        
+      this._assertOk(result, 'reply')
+    } catch (error) {
+      this._replied = false
+      throw error
+    }
   }
 
   async defer(options?: { ephemeral?: boolean }): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
-    
-    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-      data: { flags: options?.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0 }
-    })
-    this._assertOk(result, 'defer')
     this._deferred = true
+
+    try {
+
+      const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+        type: INTERACTION_CALLBACK_TYPES.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: { flags: options?.ephemeral ? MESSAGE_FLAGS.EPHEMERAL : 0 }
+      })
+
+      this._assertOk(result, 'defer')
+    } catch (error) {
+      this._deferred = false
+      throw error
+    }
   }
 
   async followUp(payload: InteractionReplyOptions): Promise<void> {
@@ -139,19 +153,26 @@ export class BaseInteractionContext {
   async showModal(modal: Record<string, unknown> | (ModalDef<ReadonlyArray<ModalFieldDef<boolean, ModalFieldType>>> & { type: 'modal' })): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
-    
-    const payload = modal.type === 'modal' ? {
-      custom_id: modal.customId,
-      title: modal.title,
-      components: Array.isArray(modal.fields) ? modal.fields.map(f => this._serializeModalField(f)) : []
-    } : modal
-
-    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: INTERACTION_CALLBACK_TYPES.MODAL,
-      data: payload
-    })
-    this._assertOk(result, 'showModal')
     this._replied = true
+    
+    try {
+     
+      const payload = modal.type === 'modal' ? {
+        custom_id: modal.customId,
+        title: modal.title,
+        components: Array.isArray(modal.fields) ? modal.fields.map(f => this._serializeModalField(f)) : []
+      } : modal
+
+      const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+        type: INTERACTION_CALLBACK_TYPES.MODAL,
+        data: payload
+      })
+
+      this._assertOk(result, 'showModal')
+    } catch (error) {
+      this._replied = false
+      throw error
+    }
   }
 }
 

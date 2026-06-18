@@ -1,5 +1,6 @@
 import type { Client } from '../client/client.js'
 import type { Message } from '../types/message/index.js'
+import type { MessageComponentData } from '../types/interaction/index.js'
 import { ComponentContext } from '../components/context.js'
 import { resolveGuild, resolveChannel, buildUser } from '../builders/index.js'
 import { INTERACTION_TYPES } from '../utils/constants.js'
@@ -72,13 +73,32 @@ export class CollectorManager {
 
         if (data.type !== 'INTERACTION_CREATE') return
         const interaction = data.interaction
-        const raw = interaction as unknown as Record<string, unknown>
         
         if (interaction.type !== INTERACTION_TYPES.MESSAGE_COMPONENT) return
         if (interaction.message?.id !== messageId) return
 
         const userRaw = interaction.member?.user || interaction.user
+        if (!userRaw) return
         const user = buildUser(userRaw as unknown as Record<string, unknown>)
+        const interactionData = interaction.data as MessageComponentData | undefined
+
+        const raw: Record<string, unknown> = {
+          id: interaction.id,
+          token: interaction.token,
+          type: interaction.type,
+          ...(interaction.guildId ? { guild_id: interaction.guildId } : {}),
+          ...(interaction.channelId ? { channel_id: interaction.channelId } : {}),
+          ...(interaction.member ? { member: interaction.member as unknown as Record<string, unknown> } : {}),
+          ...(interaction.user ? { user: interaction.user as unknown as Record<string, unknown> } : {}),
+          ...(interaction.message ? { message: interaction.message as unknown as Record<string, unknown> } : {}),
+          data: {
+            custom_id: interactionData?.customId,
+            component_type: interactionData?.componentType,
+            values: interactionData?.values,
+            resolved: interactionData?.resolved,
+            components: undefined
+          }
+        }
 
         const ctx = new ComponentContext(
           this.client,

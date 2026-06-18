@@ -4,6 +4,11 @@ import type { StoreOptions } from '../../client/store.js'
 import type { Message } from '../message/index.js'
 import type { ComponentContext } from '../../components/context.js'
 
+export interface AutoDeferOptions {
+  timeout?: number
+  ephemeral?: boolean
+}
+
 export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
   token: string
   intents: TIntents
@@ -12,6 +17,7 @@ export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
   cluster?: boolean
   cache?: StoreOptions
   debug?: boolean
+  autoDefer?: boolean | AutoDeferOptions
 }
 
 export type EventMap = {

@@ -80,27 +80,38 @@ export class ComponentContext<Values = unknown, Fields = unknown> extends BaseIn
   async deferUpdate(): Promise<void> {
 
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
-    
-    const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
-      type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
-    })
-    this._assertOk(result, 'deferUpdate')
     this._deferred = true
+
+    try {
+      const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+        type: INTERACTION_CALLBACK_TYPES.DEFERRED_UPDATE_MESSAGE
+      })
+      this._assertOk(result, 'deferUpdate')
+    } catch (error) {
+      this._deferred = false
+      throw error
+    }
   }
 
   async update(payload: InteractionReplyOptions): Promise<void> {
     
     if (this._replied || this._deferred) throw new Error('Interaction already acknowledged.')
-    
-    const { data, files } = this._resolvePayload(payload)
-    const body = {
-      type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
-      data
-    }
-    const result = files && files.length > 0
-      ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
-      : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
-    this._assertOk(result, 'update')
     this._replied = true
+
+    try {
+   
+      const { data, files } = this._resolvePayload(payload)
+      const body = {
+        type: INTERACTION_CALLBACK_TYPES.UPDATE_MESSAGE,
+        data
+      }
+      const result = files && files.length > 0
+        ? await this._client.rest.requestWithFiles('POST', `/interactions/${this.interactionId}/${this.interactionToken}/callback`, body, files, undefined, 'data')
+        : await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, body)
+      this._assertOk(result, 'update')
+    } catch (error) {
+      this._replied = false
+      throw error
+    }
   }
 }

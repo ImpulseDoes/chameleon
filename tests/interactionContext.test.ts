@@ -32,4 +32,30 @@ describe('BaseInteractionContext', () => {
       })
     })
   })
+
+  it('marks interactions as acknowledged before awaiting the network request', async () => {
+
+    let release: (() => void) | undefined
+    const post = vi.fn().mockImplementation(() => new Promise(resolve => {
+      release = () => resolve({ ok: true })
+    }))
+
+    const client = {
+      rest: { post },
+      user: { id: 'bot' }
+    } as unknown as import('../src/client/client.ts').Client
+
+    const ctx = new BaseInteractionContext(
+      client,
+      { id: 'interaction', token: 'token' },
+      { id: 'user', username: 'tester' } as import('../src/types/user/index.ts').User
+    )
+
+    const replyPromise = ctx.reply('pong')
+
+    await expect(ctx.defer()).rejects.toThrow('Interaction already acknowledged.')
+
+    release?.()
+    await replyPromise
+  })
 })
