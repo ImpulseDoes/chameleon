@@ -1,5 +1,14 @@
 import { Collection } from './collection.js'
 
+class ListNode<K> {
+  key: K
+  prev: ListNode<K> | null = null
+  next: ListNode<K> | null = null
+  constructor(key: K) {
+    this.key = key
+  }
+}
+
 /**
  * Chameleon's internal store structure,
  * acts as an least recently used cache to optimize memory usage
@@ -8,38 +17,124 @@ import { Collection } from './collection.js'
 export class Tongue<K, V> extends Collection<K, V> {
 
   private max: number
+  private head: ListNode<K> | null = null
+  private tail: ListNode<K> | null = null
+  private keyMap: Map<K, ListNode<K>> = new Map()
 
   constructor(maxSize: number = Infinity) {
     super()
     this.max = maxSize
   }
 
+  private moveToTail(node: ListNode<K>) {
+
+    if (this.tail === node) return // Already at tail
+
+    if (node.prev) node.prev.next = node.next
+    if (node.next) node.next.prev = node.prev
+
+    if (this.head === node) {
+      this.head = node.next
+    }
+
+    node.prev = this.tail
+    node.next = null
+
+    if (this.tail) this.tail.next = node
+    this.tail = node
+
+    if (!this.head) this.head = node
+  }
+
+  private evictHead() {
+
+    if (!this.head) return
+    
+    const keyToEvict = this.head.key
+    
+    this.head = this.head.next
+    
+    if (this.head) {
+      this.head.prev = null
+    } else {
+      this.tail = null
+    }
+    
+    this.keyMap.delete(keyToEvict)
+    super.delete(keyToEvict)
+  }
+
   override get(key: K): V | undefined {
 
     if (!super.has(key)) return undefined
 
-    const val = super.get(key)!
+    const node = this.keyMap.get(key)
 
-    super.delete(key)
-    super.set(key, val)
+    if (node) {
+      this.moveToTail(node)
+    }
 
-    return val
+    return super.get(key)!
   }
 
   override set(key: K, val: V): this {
 
     if (super.has(key)) {
+    
+      super.set(key, val)
+    
+      const node = this.keyMap.get(key)
+    
+      if (node) this.moveToTail(node)
+    
+      } else {
+    
+      if (this.size >= this.max) {
+        this.evictHead()
+      }
+    
+      super.set(key, val)
+    
+      const newNode = new ListNode(key)
+    
+      this.keyMap.set(key, newNode)
 
-      super.delete(key)
+      if (!this.head) {
+        this.head = newNode
+        this.tail = newNode
+      } else {
+        newNode.prev = this.tail
+        if (this.tail) this.tail.next = newNode
+        this.tail = newNode
+      }
+    }
+    return this
+  }
 
-    } else if (this.size >= this.max) {
+  override delete(key: K): boolean {
 
-      const firstKey = this.keys().next().value
+    if (!super.has(key)) return false
 
-      if (firstKey !== undefined) super.delete(firstKey)
+    const node = this.keyMap.get(key)
+
+    if (node) {
+    
+      if (node.prev) node.prev.next = node.next
+      if (node.next) node.next.prev = node.prev
+
+      if (this.head === node) this.head = node.next
+      if (this.tail === node) this.tail = node.prev
+
+      this.keyMap.delete(key)
     }
 
-    super.set(key, val)
-    return this
+    return super.delete(key)
+  }
+
+  override clear(): void {
+    super.clear()
+    this.keyMap.clear()
+    this.head = null
+    this.tail = null
   }
 }

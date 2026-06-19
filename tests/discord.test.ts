@@ -70,8 +70,9 @@ describe('Discord API Compliance', () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         status: 200,
         ok: true,
-        text: async () => JSON.stringify({ id: '123' })
-      } as Response)
+        text: async () => JSON.stringify({ id: '123' }),
+        headers: new Headers()
+      } as unknown as Response)
 
       const rest = new ChameleonREST({ token: 'test_token', version: 10 })
       
@@ -95,8 +96,9 @@ describe('Discord API Compliance', () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         status: 200,
         ok: true,
-        text: async () => JSON.stringify({})
-      } as Response)
+        text: async () => JSON.stringify({}),
+        headers: new Headers()
+      } as unknown as Response)
 
       const rest = new ChameleonREST({ token: 'test_token', version: 9 })
       
@@ -113,8 +115,9 @@ describe('Discord API Compliance', () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         status: 200,
         ok: true,
-        text: async () => JSON.stringify({})
-      } as Response)
+        text: async () => JSON.stringify({}),
+        headers: new Headers()
+      } as unknown as Response)
 
       const rest = new ChameleonREST({ token: 'test' })
       
@@ -135,8 +138,9 @@ describe('Discord API Compliance', () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         status: 200,
         ok: true,
-        text: async () => JSON.stringify({})
-      } as Response)
+        text: async () => JSON.stringify({}),
+        headers: new Headers()
+      } as unknown as Response)
 
       const rest = new ChameleonREST({ token: 'test' })
       

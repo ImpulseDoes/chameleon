@@ -91,6 +91,7 @@ export interface Interaction {
   entitlements: Entitlement[]
   authorizingIntegrationOwners: Record<string, string>
   context?: number
+  raw?: Record<string, unknown>
 }
 
 export interface MessageInteraction {

@@ -8,7 +8,7 @@ import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } fro
 import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
 import type { OptionDef, OptionType } from './options.js'
 import type { Attachment } from '../types/message/index.js'
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
 import * as path from 'path'
 import { pathToFileURL } from 'url'
 
@@ -71,18 +71,22 @@ function mapCommandOptionType(type: string): number {
 }
 
 function serializeCommandOption(name: string, definition: RuntimeOptionDef): Record<string, unknown> {
-  return {
+  
+  const result: Record<string, unknown> = {
     type: mapCommandOptionType(definition.type),
     name,
     description: definition.description,
-    required: definition.required,
-    choices: definition.choices,
-    channel_types: definition.channelTypes,
-    min_value: definition.min,
-    max_value: definition.max,
-    min_length: definition.minLength,
-    max_length: definition.maxLength
   }
+
+  if (definition.required !== undefined) result.required = definition.required
+  if (definition.choices !== undefined) result.choices = definition.choices
+  if (definition.channelTypes !== undefined) result.channel_types = definition.channelTypes
+  if (definition.min !== undefined) result.min_value = definition.min
+  if (definition.max !== undefined) result.max_value = definition.max
+  if (definition.minLength !== undefined) result.min_length = definition.minLength
+  if (definition.maxLength !== undefined) result.max_length = definition.maxLength
+
+  return result
 }
 
 function serializeCommandOptions(options?: Record<string, RuntimeOptionDef>): Record<string, unknown>[] {
@@ -141,12 +145,15 @@ export class CommandManager {
 
     const fullPath = path.resolve(process.cwd(), directory)
 
-    if (!fs.existsSync(fullPath)) {
+    try {
+      await fs.access(fullPath)
+    } catch {
       console.error(`[Chameleon] Command directory ${directory} does not exist.`)
       return
     }
 
-    const files = fs.readdirSync(fullPath).filter(f => f.endsWith('.js') || f.endsWith('.ts'))
+    const allFiles = await fs.readdir(fullPath)
+    const files = allFiles.filter(f => f.endsWith('.js') || f.endsWith('.ts'))
     const commands: AnyCommandInput[] = []
 
     for (const file of files) {
@@ -297,7 +304,6 @@ export class CommandManager {
     const data = raw.data as InteractionData | undefined
     if (!data) return
 
-    if (raw.type === INTERACTION_TYPES.MESSAGE_COMPONENT) return this._client.components.handleInteraction(raw)
     if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw, data)
     if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND) return
 

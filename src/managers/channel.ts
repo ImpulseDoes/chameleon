@@ -7,6 +7,7 @@ import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class ChannelManager extends BaseManager<Channel> {
 
@@ -16,9 +17,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async create(guildId: string, payload: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/guilds/${guildId}/channels`, toSnakeCase(payload), headers)
 
@@ -33,9 +32,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async edit(channelId: string, payload: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.patch<unknown>(this.endpoint(channelId), toSnakeCase(payload), headers)
 
@@ -50,9 +47,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async delete(channelId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(this.endpoint(channelId), headers)
 
@@ -63,9 +58,16 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async clone(channelId: string, options?: Partial<Channel>, reason?: string): Promise<ChameleonAPIResult<Channel>> {
 
-    const cached = this.store.channels.get(channelId)
+    let cached = this.store.channels.get(channelId)
     
-    if (!cached) return { ok: false, status: 404, error: 'Channel not found in cache', message: 'Channel not found in cache' } as ChameleonAPIResult<never>
+    if (!cached) {
+
+      const fetched = await this.fetch(channelId)
+      
+      if (!fetched.ok) return fetched as ChameleonAPIResult<never>
+      
+      cached = fetched.data
+    }
 
     const payload: Partial<Channel> = {}
 
@@ -88,8 +90,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async setPositions(guildId: string, positions: { id: string, position?: number, lockPermissions?: boolean, parentId?: string }[], reason?: string): Promise<ChameleonAPIResult<void>> {
     
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const payload = positions.map(p => ({
       id: p.id,
@@ -105,18 +106,14 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async updatePermissions(channelId: string, overwriteId: string, payload: Partial<Overwrite>, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     return await this.rest.put(`/channels/${channelId}/permissions/${overwriteId}`, toSnakeCase(payload), headers) as ChameleonAPIResult<void>
   }
 
   async deletePermission(channelId: string, overwriteId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     return await this.rest.delete(`/channels/${channelId}/permissions/${overwriteId}`, headers) as ChameleonAPIResult<void>
   }
@@ -141,9 +138,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async createInvite(channelId: string, options?: { maxAge?: number, maxUses?: number, temporary?: boolean, unique?: boolean, targetType?: number, targetUserId?: string, targetApplicationId?: string }, reason?: string): Promise<ChameleonAPIResult<Invite>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const payload = options ? toSnakeCase(options) : {}
     const result = await this.rest.post<unknown>(`/channels/${channelId}/invites`, payload, headers)
@@ -166,9 +161,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async createThread(channelId: string, options: { name: string, autoArchiveDuration?: number, type?: number, invitable?: boolean, rateLimitPerUser?: number }, reason?: string): Promise<ChameleonAPIResult<Channel>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/channels/${channelId}/threads`, toSnakeCase(options), headers)
 
@@ -182,9 +175,7 @@ export class ChannelManager extends BaseManager<Channel> {
 
   async createThreadFromMessage(channelId: string, messageId: string, options: { name: string, autoArchiveDuration?: number, rateLimitPerUser?: number }, reason?: string): Promise<ChameleonAPIResult<Channel>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/channels/${channelId}/messages/${messageId}/threads`, toSnakeCase(options), headers)
     
@@ -240,9 +231,8 @@ export class ChannelManager extends BaseManager<Channel> {
       if (options.before) params.append('before', options.before)
       if (options.limit) params.append('limit', options.limit.toString())
       
-        const qs = params.toString()
-      
-        if (qs) url += `?${qs}`
+      const qs = params.toString()
+      if (qs) url += `?${qs}`
     }
 
     const result = await this.rest.get<unknown>(url)
@@ -285,8 +275,7 @@ export class ChannelManager extends BaseManager<Channel> {
     }
   }, reason?: string): Promise<ChameleonAPIResult<Channel>> {
 
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const messagePayload: Record<string, unknown> = {}
 

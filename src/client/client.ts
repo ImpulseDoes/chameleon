@@ -243,10 +243,12 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
    */
   public async login(): Promise<void> {
 
+    let first = true
+    
     for (const gw of this.gateways.values()) {
+      if (!first) await new Promise(r => setTimeout(r, 5000))
+      first = false
       gw.connect()
-      // delay connection between shards as recommended by Discord
-      await new Promise(r => setTimeout(r, 5000))
     }
   }
 
@@ -332,13 +334,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   private setupGateway(): void {
 
     for (const gw of this.gateways.values()) {
+      gw.removeAllListeners('dispatch')
       gw.on<GatewayPayload>('dispatch', (payload) => {
-        this.handleDispatch(payload)
+        this.handleDispatch(payload).catch(console.error)
       })
     }
   }
 
-  private handleDispatch(payload: GatewayPayload): void {
+  private async handleDispatch(payload: GatewayPayload): Promise<void> {
 
     const { t } = payload
     const d = payload.d as Record<string, unknown>
@@ -387,25 +390,31 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         this.cache.guilds.set(guild.id, guild)
 
         if (Array.isArray(d.channels)) {
+          let i = 0
           for (const raw of d.channels as Record<string, unknown>[]) {
             const ch = buildChannel(raw, guild.id)
             this.cache.channels.set(ch.id, ch)
+            if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
 
         if (Array.isArray(d.roles)) {
+          let i = 0
           for (const raw of d.roles as Record<string, unknown>[]) {
             const role = buildRole(raw)
             this.cache.roles.set(role.id, role)
+            if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
 
         if (Array.isArray(d.members)) {
+          let i = 0
           for (const raw of d.members as Record<string, unknown>[]) {
             const member = buildMember(raw, guild.id, this.cache)
             if (member.user?.id) {
               this.cache.members.set(TongueStore.memberKey(guild.id, member.user.id), member)
             }
+            if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
 
@@ -930,6 +939,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const members: import('../types/guild/index.ts').Member[] = []
 
         if (Array.isArray(d.members)) {
+          let i = 0
           for (const raw of d.members as Record<string, unknown>[]) {
             const member = buildMember(raw, guildId, this.cache)
             if (member.user?.id) {
@@ -937,6 +947,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
               this.cache.members.set(TongueStore.memberKey(guildId, member.user.id), member)
             }
             members.push(member)
+            if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
 

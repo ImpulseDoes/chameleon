@@ -2,6 +2,7 @@ import type { ChameleonREST } from '../rest/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import type { SoundboardSound, SoundboardCreateOptions, SoundboardEditOptions } from '../types/soundboard/index.js'
 import { AttachmentBuilder } from '../builders/attachment.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class SoundboardManager {
 
@@ -67,8 +68,7 @@ export class SoundboardManager {
     if (options.emojiId !== undefined) payload.emoji_id = options.emojiId
     if (options.emojiName !== undefined) payload.emoji_name = options.emojiName
 
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = reason
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<SoundboardSound>(`/guilds/${guildId}/soundboard-sounds`, payload, headers)
 
@@ -86,8 +86,7 @@ export class SoundboardManager {
     if (options.emojiId !== undefined) payload.emoji_id = options.emojiId
     if (options.emojiName !== undefined) payload.emoji_name = options.emojiName
 
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = reason
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.patch<SoundboardSound>(`/guilds/${guildId}/soundboard-sounds/${soundId}`, payload, headers)
 
@@ -98,8 +97,7 @@ export class SoundboardManager {
 
   public async delete(guildId: string, soundId: string, reason?: string): Promise<ChameleonAPIResult<never>> {
     
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = reason
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete<never>(`/guilds/${guildId}/soundboard-sounds/${soundId}`, headers)
 

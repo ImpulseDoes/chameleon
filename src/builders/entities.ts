@@ -327,7 +327,8 @@ export function buildInteraction(raw: Record<string, unknown>, cache?: TongueSto
       ? (raw.entitlements as Record<string, unknown>[]).map(e => buildEntitlement(e))
       : [],
     authorizingIntegrationOwners: (raw.authorizing_integration_owners as Record<string, string>) ?? {},
-    ...(raw.context !== undefined ? { context: raw.context as number } : {}),
+    context: raw.context as number,
+    raw,
   }
 }
 

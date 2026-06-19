@@ -82,7 +82,7 @@ export class CollectorManager {
         const user = buildUser(userRaw as unknown as Record<string, unknown>)
         const interactionData = interaction.data as MessageComponentData | undefined
 
-        const raw: Record<string, unknown> = {
+        const raw: Record<string, unknown> = interaction.raw ?? {
           id: interaction.id,
           token: interaction.token,
           type: interaction.type,

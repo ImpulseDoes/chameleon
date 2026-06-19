@@ -7,16 +7,26 @@ export class Collection<K, V> extends Map<K, V> {
 
   public last(): V | undefined {
 
-    const arr = Array.from(this.values())
+    let last: V | undefined
+
+    for (const v of this.values()) last = v
     
-    return arr[arr.length - 1]
+    return last
   }
 
   public random(): V | undefined {
 
-    const arr = Array.from(this.values())
+    if (this.size === 0) return undefined
 
-    return arr[Math.floor(Math.random() * arr.length)]
+    const target = Math.floor(Math.random() * this.size)
+    let i = 0
+
+    for (const v of this.values()) {
+      if (i === target) return v
+      i++
+    }
+
+    return undefined
   }
 
   public find(fn: (value: V, key: K, collection: this) => boolean): V | undefined {

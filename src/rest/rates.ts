@@ -6,7 +6,7 @@ export class RateLimitError extends Error {
 
 export class Bucket {
 
-  public remaining: number = 1
+  public remaining: number = Infinity
   public resetTimestamp: number = 0
   private promiseQueue: Promise<void> = Promise.resolve()
 
@@ -47,6 +47,39 @@ export class RateLimiter {
   private globalReset: number = 0
   private routeToBucket: Map<string, string> = new Map()
   private buckets: Map<string, Bucket> = new Map()
+  private sweepTimer: ReturnType<typeof setInterval> | null = null
+
+  constructor() {
+
+    this.sweepTimer = setInterval(() => {
+    
+      const now = Date.now()
+    
+      for (const [key, bucket] of this.buckets) {
+        if (now > bucket.resetTimestamp + 300_000) {
+          this.buckets.delete(key)
+        }
+      }
+    
+      for (const [route, hash] of this.routeToBucket) {
+        if (!this.buckets.has(hash)) {
+          this.routeToBucket.delete(route)
+        }
+      }
+    }, 300_000)
+    // Allow the process to exit even if this timer is still running
+    if (this.sweepTimer && typeof this.sweepTimer === 'object' && 'unref' in this.sweepTimer) {
+      this.sweepTimer.unref()
+    }
+  }
+
+  public destroy(): void {
+    
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer)
+      this.sweepTimer = null
+    }
+  }
 
   private getRoute(method: string, endpoint: string): string {
 

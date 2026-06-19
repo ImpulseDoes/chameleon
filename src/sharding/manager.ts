@@ -47,10 +47,17 @@ export class Shard extends EventEmitter {
 
       this.process.on('exit', (code, signal) => {
 
+        const wasReady = this.ready
+        
         this.emit('death', this.process)
         this.manager.emit('shardDeath', this)
         this.process = null
         this.ready = false
+
+        if (!wasReady) {
+          reject(new Error(`[C-Shard] Shard ${this.id} exited before ready (code=${code}, signal=${signal})`))
+          return
+        }
 
         if (this.manager.respawn) {
           console.warn(`[C-Shard] Shard ${this.id} exited with code ${code} (signal: ${signal})`)

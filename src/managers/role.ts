@@ -4,6 +4,7 @@ import type { ChameleonAPIResult } from '../rest/types.js'
 import type { Role } from '../types/guild/index.js'
 import { buildRole } from '../builders/index.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class RoleManager {
 
@@ -56,8 +57,7 @@ export class RoleManager {
 
   async create(payload: Partial<Role>, reason?: string): Promise<ChameleonAPIResult<Role>> {
 
-    const headers: Record<string, string> = {}
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/guilds/${this.guildId}/roles`, toSnakeCase(payload), headers)
     if (!result.ok) return result as ChameleonAPIResult<never>
@@ -70,9 +70,7 @@ export class RoleManager {
 
   async edit(roleId: string, payload: Partial<Role>, reason?: string): Promise<ChameleonAPIResult<Role>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.patch<unknown>(`/guilds/${this.guildId}/roles/${roleId}`, toSnakeCase(payload), headers)
 
@@ -86,9 +84,7 @@ export class RoleManager {
 
   async delete(roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/guilds/${this.guildId}/roles/${roleId}`, headers)
 

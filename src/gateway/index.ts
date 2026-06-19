@@ -303,7 +303,7 @@ export class ChameleonGateway {
       case DISCORD_GATEWAY_OPCODES.RECONNECT: {
 
         this.emit('debug', '[GATEWAY] Received Reconnect, reconnecting...')
-
+        this.disconnect(4900, 'Discord requested reconnect')
         this.scheduleReconnect()
 
         break
@@ -421,11 +421,18 @@ export class ChameleonGateway {
 
     if (!this.heartbeatAcked) {
 
-      this.emit('debug', '[GATEWAY] Heartbeat ACK not received, reconnecting...')
-      this.disconnect(4900, 'Zombie connection (no heartbeat ACK)')
-      this.scheduleReconnect()
+      const expectedTimeSinceLastHeartbeat = this.heartbeatIntervalMs;
+      const actualTimeSinceLastHeartbeat = Date.now() - this._lastHeartbeatSend;
 
-      return
+      if (actualTimeSinceLastHeartbeat > expectedTimeSinceLastHeartbeat + 5000) {
+        this.emit('debug', `[GATEWAY] Event loop was blocked (timer delayed by ${actualTimeSinceLastHeartbeat - expectedTimeSinceLastHeartbeat}ms), forgiving missing ACK...`)
+      } else {
+        this.emit('debug', '[GATEWAY] Heartbeat ACK not received, reconnecting...')
+        this.disconnect(4900, 'Zombie connection (no heartbeat ACK)')
+        this.scheduleReconnect()
+
+        return
+      }
     }
 
     this.heartbeatAcked = false

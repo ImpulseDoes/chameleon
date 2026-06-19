@@ -23,7 +23,8 @@ export class ChameleonREST {
     method: HttpMethod,
     endpoint: string,
     body?: unknown,
-    headers?: Record<string, string>
+    headers?: Record<string, string>,
+    retries: number = 2
   ): Promise<ChameleonAPIResult<T>> {
     
     const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
@@ -42,52 +43,72 @@ export class ChameleonREST {
       reqBody = JSON.stringify(body)
     }
 
-    try {
+    let attempt = 0
 
-      const response = await this.limiter.execute(method, path, () => fetch(url, {
-        method,
-        headers: reqHeaders,
-        ...(reqBody !== undefined ? { body: reqBody } : {})
-      }))
+    while (attempt <= retries) {
+      
+      try {
 
-      let data: unknown = null
+        const response = await this.limiter.execute(method, path, () => fetch(url, {
+          method,
+          headers: reqHeaders,
+          ...(reqBody !== undefined ? { body: reqBody } : {})
+        }))
 
-      if (response.status !== 204) {
+        if (response.status >= 500 && attempt < retries) {
+          attempt++
+          await new Promise(r => setTimeout(r, attempt * 1000)) // Exponential backoff
+          continue
+        }
 
-        const text = await response.text()
+        let data: unknown = null
 
-        if (text) {
-          try {
-            data = JSON.parse(text)
-          } catch {
-            data = text
+        if (response.status !== 204) {
+
+          const text = await response.text()
+
+          if (text) {
+            try {
+              data = JSON.parse(text)
+            } catch {
+              data = text
+            }
           }
         }
-      }
 
-      if (response.ok) {
-        return { ok: true, data: data as T }
-      }
+        if (response.ok) {
+          return { ok: true, data: data as T }
+        }
 
-      const errData = data as Record<string, unknown> | null
+        const errData = data as Record<string, unknown> | null
 
-      return {
-        ok: false,
-        status: response.status,
-        ...(typeof errData?.code === 'number' ? { code: errData.code } : {}),
-        error: typeof errData?.message === 'string' ? errData.message : response.statusText,
-        message: typeof errData?.message === 'string' ? errData.message : response.statusText,
-        raw: data
-      }
+        return {
+          ok: false,
+          status: response.status,
+          ...(typeof errData?.code === 'number' ? { code: errData.code } : {}),
+          error: typeof errData?.message === 'string' ? errData.message : response.statusText,
+          message: typeof errData?.message === 'string' ? errData.message : response.statusText,
+          raw: data
+        }
 
-    } catch (error: unknown) {
-      return {
-        ok: false,
-        status: 0,
-        error: error instanceof Error ? error.message : 'Unknown network error',
-        message: error instanceof Error ? error.message : 'Unknown network error'
+      } catch (error: unknown) {
+        
+        if (attempt < retries) {
+          attempt++
+          await new Promise(r => setTimeout(r, attempt * 1000))
+          continue
+        }
+
+        return {
+          ok: false,
+          status: 0,
+          error: error instanceof Error ? error.message : 'Unknown network error',
+          message: error instanceof Error ? error.message : 'Unknown network error'
+        }
       }
     }
+
+    return { ok: false, status: 0, error: 'Max retries exceeded', message: 'Max retries exceeded' }
   }
 
   public get<T = unknown>(endpoint: string, headers?: Record<string, string>) {

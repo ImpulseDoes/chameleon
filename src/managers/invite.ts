@@ -2,6 +2,7 @@ import type { ChameleonREST } from '../rest/index.js'
 import { buildInvite } from '../builders/index.js'
 import type { Invite } from '../types/invite/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class InviteManager {
 
@@ -33,9 +34,7 @@ export class InviteManager {
 
   async delete(code: string, reason?: string): Promise<ChameleonAPIResult<Invite>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/invites/${code}`, headers)
     if (!result.ok) return result as ChameleonAPIResult<never>

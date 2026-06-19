@@ -11,6 +11,7 @@ import type { Invite } from '../types/invite/index.js'
 import type { AuditLog } from '../types/audit/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import { toSnakeCase, toCamelCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 export class GuildManager extends BaseManager<Guild> {
 
@@ -18,12 +19,28 @@ export class GuildManager extends BaseManager<Guild> {
   protected endpoint(id: string) { return `/guilds/${id}` }
   protected build = buildGuild
 
+  private roleManagers = new Map<string, RoleManager>()
+  private memberManagers = new Map<string, MemberManager>()
+
   roles(guildId: string): RoleManager {
-    return new RoleManager(this.rest, this.store, guildId)
+    let manager = this.roleManagers.get(guildId)
+    if (!manager) {
+      manager = new RoleManager(this.rest, this.store, guildId)
+      this.roleManagers.set(guildId, manager)
+    }
+    return manager
   }
 
   members(guildId: string): MemberManager {
-    return new MemberManager(this.rest, this.store, guildId)
+
+    let manager = this.memberManagers.get(guildId)
+    
+    if (!manager) {
+      manager = new MemberManager(this.rest, this.store, guildId)
+      this.memberManagers.set(guildId, manager)
+    }
+    
+    return manager
   }
 
   async fetchChannels(guildId: string): Promise<ChameleonAPIResult<Channel[]>> {
@@ -47,8 +64,7 @@ export class GuildManager extends BaseManager<Guild> {
 
     if (options?.deleteMessageSeconds !== undefined) payload.delete_message_seconds = options.deleteMessageSeconds
 
-    const headers: Record<string, string> = {}
-    if (options?.reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(options.reason)
+    const headers = createAuditLogHeaders(options?.reason)
 
     const result = await this.rest.put(`/guilds/${guildId}/bans/${userId}`, payload, headers)
     return result as ChameleonAPIResult<void>
@@ -56,9 +72,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async unban(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/guilds/${guildId}/bans/${userId}`, headers)
     return result as ChameleonAPIResult<void>
@@ -66,9 +80,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async kick(guildId: string, userId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/guilds/${guildId}/members/${userId}`, headers)
 
@@ -81,9 +93,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async edit(guildId: string, payload: Partial<Guild>, reason?: string): Promise<ChameleonAPIResult<Guild>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.patch<unknown>(this.endpoint(guildId), toSnakeCase(payload), headers)
 
@@ -139,9 +149,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async createEmoji(guildId: string, payload: { name: string, image: string, roles?: string[] }, reason?: string): Promise<ChameleonAPIResult<Emoji>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/guilds/${guildId}/emojis`, toSnakeCase(payload), headers)
     
@@ -156,9 +164,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async editEmoji(guildId: string, emojiId: string, payload: { name?: string, roles?: string[] }, reason?: string): Promise<ChameleonAPIResult<Emoji>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.patch<unknown>(`/guilds/${guildId}/emojis/${emojiId}`, toSnakeCase(payload), headers)
     
@@ -173,9 +179,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async deleteEmoji(guildId: string, emojiId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/guilds/${guildId}/emojis/${emojiId}`, headers)
     
@@ -230,7 +234,7 @@ export class GuildManager extends BaseManager<Guild> {
       
       const qs = params.toString()
       
-        if (qs) url += `?${qs}`
+      if (qs) url += `?${qs}`
     }
 
     const result = await this.rest.get<unknown[]>(url)
@@ -305,9 +309,7 @@ export class GuildManager extends BaseManager<Guild> {
 
   async beginPrune(guildId: string, options?: { days?: number, computePruneCount?: boolean, includeRoles?: string[] }, reason?: string): Promise<ChameleonAPIResult<number | null>> {
     
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.post<unknown>(`/guilds/${guildId}/prune`, toSnakeCase(options ?? {}), headers)
     if (!result.ok) return result as ChameleonAPIResult<never>

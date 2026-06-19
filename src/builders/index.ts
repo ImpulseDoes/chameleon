@@ -132,53 +132,39 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
   const authorRaw = raw.author as Record<string, unknown> | undefined
   const author = authorRaw ? buildUser(authorRaw) : (oldMessage?.author ?? ({} as User))
 
-  // hydrate user into cache
-  if (authorRaw && author.id) {
-    cache.users.set(author.id, author)
-  }
+  if (authorRaw && author.id) cache.users.set(author.id, author)
 
   const msgId = (raw.id as string) ?? oldMessage?.id
   const channelId = (raw.channel_id as string) ?? oldMessage?.channelId
   const guildId = raw.guild_id ? (raw.guild_id as string) : oldMessage?.guildId
+  const type = (raw.type as number) ?? oldMessage?.type ?? 0
+  const flags = (raw.flags as number | undefined) ?? oldMessage?.flags
+  const editedTimestamp = raw.edited_timestamp ? Date.parse(raw.edited_timestamp as string) : oldMessage?.editedTimestamp ?? null
+  const attachments = (raw.attachments as import('../types/message/index.ts').Attachment[]) ?? oldMessage?.attachments ?? []
+  const embeds = (raw.embeds as import('../types/message/index.ts').Embed[]) ?? oldMessage?.embeds ?? []
+  const components = (raw.components as import('../types/components/index.ts').MessageComponent[]) ?? oldMessage?.components
   const stickerItems = (raw.sticker_items as import('../types/expressions/index.ts').StickerItem[]) ?? oldMessage?.stickerItems
   const stickers = (raw.stickers as import('../types/expressions/index.ts').Sticker[]) ?? oldMessage?.stickers
   const poll = (raw.poll as import('../types/message/index.ts').Poll) ?? oldMessage?.poll
-  const components = (raw.components as import('../types/components/index.ts').MessageComponent[]) ?? oldMessage?.components
-  const webhookId = (raw.webhook_id as string | undefined) ?? oldMessage?.webhookId
-  const flags = (raw.flags as number | undefined) ?? oldMessage?.flags
   const messageReference = (raw.message_reference as import('../types/message/index.ts').MessageReference | undefined) ?? oldMessage?.messageReference
   const referencedMessage = (raw.referenced_message as Message | null | undefined) ?? oldMessage?.referencedMessage
   const interactionMetadata = (raw.interaction_metadata as import('../types/message/index.ts').MessageInteractionMetadata | undefined) ?? oldMessage?.interactionMetadata
   const interaction = (raw.interaction as import('../types/interaction/index.ts').MessageInteraction | undefined) ?? oldMessage?.interaction
   const thread = (raw.thread as Channel | undefined) ?? oldMessage?.thread
-  const call = (raw.call as import('../types/message/index.ts').MessageCall | undefined) ?? oldMessage?.call
-  const messageSnapshots = (raw.message_snapshots as import('../types/message/index.ts').MessageSnapshot[] | undefined) ?? oldMessage?.messageSnapshots
-  const type = (raw.type as number) ?? oldMessage?.type ?? 0
-  const attachments = (raw.attachments as import('../types/message/index.ts').Attachment[]) ?? oldMessage?.attachments ?? []
-  const embeds = (raw.embeds as import('../types/message/index.ts').Embed[]) ?? oldMessage?.embeds ?? []
+  
   const mentionEveryone = (raw.mention_everyone as boolean) ?? oldMessage?.mentionEveryone ?? false
   const tts = (raw.tts as boolean) ?? oldMessage?.tts ?? false
   const pinned = (raw.pinned as boolean) ?? oldMessage?.pinned ?? false
-  const editedTimestamp = raw.edited_timestamp ? Date.parse(raw.edited_timestamp as string) : oldMessage?.editedTimestamp ?? null
-  const hasReply = Boolean(messageReference || referencedMessage || type === MessageType.REPLY)
-  const hasForward = Boolean(
-    ((messageReference?.type ?? 0) === MessageReferenceType.FORWARD)
-    || ((raw.message_snapshots as unknown[] | undefined) ?? oldMessage?.messageSnapshots ?? []).length > 0
-    || ((flags ?? 0) & MessageFlag.HAS_SNAPSHOT)
-  )
+  const webhookId = (raw.webhook_id as string | undefined) ?? oldMessage?.webhookId
+
+  const content = (raw.content as string) ?? oldMessage?.content ?? ''
+  
   const hasVoiceMessage = Boolean((flags ?? 0) & MessageFlag.IS_VOICE_MESSAGE)
-  const hasStickers = (stickerItems ?? stickers ?? []).length > 0
-  const systemPresence = {
-    any: type !== MessageType.DEFAULT && type !== MessageType.REPLY,
-    booster: type === MessageType.GUILD_BOOST
-      || type === MessageType.GUILD_BOOST_TIER_1
-      || type === MessageType.GUILD_BOOST_TIER_2
-      || type === MessageType.GUILD_BOOST_TIER_3,
-    call: type === MessageType.CALL,
-    pinned: type === MessageType.CHANNEL_PINNED_MESSAGE,
-    thread: type === MessageType.THREAD_STARTER_MESSAGE,
-    welcome: type === MessageType.USER_JOIN,
-  }
+  const hasForward = Boolean(
+    ((messageReference?.type ?? 0) === MessageReferenceType.FORWARD) || 
+    ((raw.message_snapshots as unknown[] | undefined) ?? oldMessage?.messageSnapshots ?? []).length > 0 || 
+    ((flags ?? 0) & MessageFlag.HAS_SNAPSHOT)
+  )
 
   const msg: Message = {
     id: msgId,
@@ -186,7 +172,7 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     author,
     ...(guildId ? { guildId } : {}),
     url: `https://discord.com/channels/${guildId ?? '@me'}/${channelId}/${msgId}`,
-    content: (raw.content as string) ?? oldMessage?.content ?? '',
+    content,
     timestamp: raw.timestamp ? Date.parse(raw.timestamp as string) : (oldMessage?.timestamp ?? Date.now()),
     editedTimestamp,
     tts,
@@ -200,7 +186,7 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     ...(webhookId ? { webhookId } : {}),
     ...(flags !== undefined ? { flags } : {}),
     ...(messageReference ? { messageReference } : {}),
-    ...(messageSnapshots ? { messageSnapshots } : {}),
+    ...(raw.message_snapshots ? { messageSnapshots: raw.message_snapshots as import('../types/message/index.ts').MessageSnapshot[] } : oldMessage?.messageSnapshots ? { messageSnapshots: oldMessage.messageSnapshots } : {}),
     ...(referencedMessage !== undefined ? { referencedMessage } : {}),
     ...(interactionMetadata ? { interactionMetadata } : {}),
     ...(interaction ? { interaction } : {}),
@@ -209,7 +195,7 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     ...(stickerItems ? { stickerItems } : {}),
     ...(stickers ? { stickers } : {}),
     ...(poll ? { poll } : {}),
-    ...(call ? { call } : {}),
+    ...(raw.call ? { call: raw.call as import('../types/message/index.ts').MessageCall } : oldMessage?.call ? { call: oldMessage.call } : {}),
     has: {
       attachments: attachments.length > 0 && !hasVoiceMessage,
       components: (components ?? []).length > 0,
@@ -217,13 +203,20 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
       embeds: embeds.length > 0,
       forwarded: hasForward,
       interaction: Boolean(interactionMetadata || interaction),
-      mentionHere: mentionEveryone && (((raw.content as string) ?? oldMessage?.content ?? '').includes('@here')),
+      mentionHere: mentionEveryone && content.includes('@here'),
       mentionEveryone,
       pinned,
       poll: Boolean(poll),
-      reply: hasReply,
-      stickers: hasStickers,
-      system: systemPresence,
+      reply: Boolean(messageReference || referencedMessage || type === MessageType.REPLY),
+      stickers: (stickerItems ?? stickers ?? []).length > 0,
+      system: {
+        any: type !== MessageType.DEFAULT && type !== MessageType.REPLY,
+        booster: type >= MessageType.GUILD_BOOST && type <= MessageType.GUILD_BOOST_TIER_3,
+        call: type === MessageType.CALL,
+        pinned: type === MessageType.CHANNEL_PINNED_MESSAGE,
+        thread: type === MessageType.THREAD_STARTER_MESSAGE,
+        welcome: type === MessageType.USER_JOIN,
+      },
       thread: Boolean(thread),
       tts,
       voiceMessage: hasVoiceMessage,

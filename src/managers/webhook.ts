@@ -84,10 +84,19 @@ export class WebhookManager {
 
   async execute(webhookId: string, token: string, payload: WebhookMessageCreateOptions, options?: { wait?: boolean, threadId?: string }): Promise<ChameleonAPIResult<Message | void>> {
     
-    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...(toSnakeCase(payload) as Record<string, unknown>) }
+    const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : {}
+    
     let files: AttachmentBuilder[] | undefined
 
     if (typeof payload === 'object') {
+
+      if (payload.content !== undefined) data.content = payload.content
+      if (payload.username !== undefined) data.username = payload.username
+      if (payload.avatarUrl !== undefined) data.avatar_url = payload.avatarUrl
+      if (payload.tts !== undefined) data.tts = payload.tts
+      if (payload.flags !== undefined) data.flags = payload.flags
+      if (payload.threadName !== undefined) data.thread_name = payload.threadName
+      if (payload.allowedMentions) data.allowed_mentions = toSnakeCase(payload.allowedMentions)
       
       if (payload.embeds) {
         data.embeds = payload.embeds.map(e => (e && typeof (e as { toJSON?(): Record<string, unknown> }).toJSON === 'function' ? (e as { toJSON(): Record<string, unknown> }).toJSON() : e))
@@ -112,7 +121,6 @@ export class WebhookManager {
 
       if (payload.files && payload.files.length > 0) {
         files = payload.files
-        delete data.files
       }
     }
 

@@ -4,6 +4,7 @@ import type { ChameleonAPIResult } from '../rest/types.js'
 import type { Member } from '../types/guild/index.js'
 import { buildMember } from '../builders/index.js'
 import { toSnakeCase } from '../utils/object.js'
+import { createAuditLogHeaders } from './shared.js'
 
 type MemberEditOptions = Partial<Omit<Member, 'communicationDisabledUntil'>> & {
   communicationDisabledUntil?: string | number | Date | null
@@ -43,9 +44,7 @@ export class MemberManager {
 
   async edit(userId: string, payload: MemberEditOptions, reason?: string): Promise<ChameleonAPIResult<Member>> {
 
-    const headers: Record<string, string> = {}
-
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const normalizedPayload = {
       ...payload,
@@ -131,9 +130,7 @@ export class MemberManager {
 
   async addRole(userId: string, roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
    
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.put(`/guilds/${this.guildId}/members/${userId}/roles/${roleId}`, undefined, headers)
     
@@ -142,9 +139,7 @@ export class MemberManager {
 
   async removeRole(userId: string, roleId: string, reason?: string): Promise<ChameleonAPIResult<void>> {
 
-    const headers: Record<string, string> = {}
-    
-    if (reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(reason)
+    const headers = createAuditLogHeaders(reason)
 
     const result = await this.rest.delete(`/guilds/${this.guildId}/members/${userId}/roles/${roleId}`, headers)
     

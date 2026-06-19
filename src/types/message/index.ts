@@ -4,7 +4,7 @@ import type { Member } from '../guild/index.js'
 import type { Emoji, Sticker, StickerItem } from '../expressions/index.js'
 import type { Application } from '../application/index.js'
 import type { MessageComponent } from '../components/index.js'
-import type { MessageInteraction, ResolvedData } from '../interaction/index.js'
+import type { AllowedMentions, MessageInteraction, ResolvedData } from '../interaction/index.js'
 import type { AttachmentBuilder } from '../../builders/attachment.js'
 
 export interface ChannelMention {
@@ -306,6 +306,8 @@ export type WebhookMessageCreateOptions = string | {
   threadName?: string
   files?: AttachmentBuilder[]
   poll?: PollCreateRequest
+  flags?: number
+  allowedMentions?: AllowedMentions
 }
 
 export const MessageType = {
