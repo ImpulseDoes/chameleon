@@ -8,7 +8,7 @@ import { INTERACTION_TYPES } from '../utils/constants.ts'
 import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
-import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager } from '../managers/index.js'
+import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager, EmojiManager, StickerManager, VoiceManager, IntegrationManager, SkuManager } from '../managers/index.js'
 import type { AutoDeferOptions, ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
 
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
@@ -41,6 +41,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   public templates: TemplateManager
   public application: ApplicationManager
   public soundboard: SoundboardManager
+  public emojis: EmojiManager
+  public stickers: StickerManager
+  public voice: VoiceManager
+  public integrations: IntegrationManager
+  public skus: SkuManager
   public autoDefer: { timeout: number, ephemeral: boolean } | null
 
   private listeners: Map<string, Array<(data: unknown) => unknown | Promise<unknown>>> = new Map()
@@ -73,6 +78,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.templates = new TemplateManager(this.rest)
     this.application = new ApplicationManager(this.rest, this)
     this.soundboard = new SoundboardManager(this.rest)
+    this.emojis = new EmojiManager(this.rest, this.cache)
+    this.stickers = new StickerManager(this.rest, this.cache)
+    this.voice = new VoiceManager(this.rest)
+    this.integrations = new IntegrationManager(this.rest)
+    this.skus = new SkuManager(this.rest)
 
     let shards: number[] = [0]
     let totalShards = 1

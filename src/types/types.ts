@@ -24,12 +24,27 @@ export const IntentBits = {
 
 export const Intents = {
   ...IntentBits,
+  Privileged: [
+    IntentBits.GuildMembers,
+    IntentBits.GuildPresences,
+    IntentBits.MessageContent
+  ],
+  StandardPrivileged: [
+    IntentBits.GuildMembers,
+    IntentBits.MessageContent
+  ],
   Moderation: [
     IntentBits.GuildModeration,
     IntentBits.AutoModerationConfiguration,
     IntentBits.AutoModerationExecution
-    // todo: add rest
-  ]
+  ],
+  All: Object.values(IntentBits),
+  Default: Object.values(IntentBits).filter(
+    (intent) =>
+      intent !== IntentBits.GuildMembers &&
+      intent !== IntentBits.GuildPresences &&
+      intent !== IntentBits.MessageContent
+  )
 } as const
 
 export type IntentString = keyof typeof IntentBits

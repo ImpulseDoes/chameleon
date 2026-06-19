@@ -26,3 +26,11 @@ export const CHAMELEON_SELF_MAP = {
 } as const satisfies Record<keyof CHAMELEON_SELF_KEYS, string>
 
 export type ChameleonSelfKey = typeof CHAMELEON_SELF_MAP[keyof typeof CHAMELEON_SELF_MAP]
+
+export interface VoiceRegion {
+  id: string
+  name: string
+  optimal: boolean
+  deprecated: boolean
+  custom: boolean
+}
