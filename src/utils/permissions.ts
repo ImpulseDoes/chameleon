@@ -9,6 +9,10 @@ export function hasPermission(permissions: string | bigint, flag: bigint): boole
 
   const bits = typeof permissions === 'string' ? BigInt(permissions) : permissions
 
+  if ((bits & DISCORD_PERMISSIONS.ADMINISTRATOR) === DISCORD_PERMISSIONS.ADMINISTRATOR) {
+    return true
+  }
+
   return (bits & flag) === flag
 }
 
@@ -18,6 +22,10 @@ export function hasPermission(permissions: string | bigint, flag: bigint): boole
 export function hasAllPermissions(permissions: string | bigint, ...flags: bigint[]): boolean {
 
   const bits = typeof permissions === 'string' ? BigInt(permissions) : permissions
+
+  if ((bits & DISCORD_PERMISSIONS.ADMINISTRATOR) === DISCORD_PERMISSIONS.ADMINISTRATOR) {
+    return true
+  }
 
   for (const flag of flags) {
     if ((bits & flag) !== flag) return false
@@ -32,6 +40,10 @@ export function hasAllPermissions(permissions: string | bigint, ...flags: bigint
 export function hasAnyPermission(permissions: string | bigint, ...flags: bigint[]): boolean {
 
   const bits = typeof permissions === 'string' ? BigInt(permissions) : permissions
+
+  if ((bits & DISCORD_PERMISSIONS.ADMINISTRATOR) === DISCORD_PERMISSIONS.ADMINISTRATOR) {
+    return true
+  }
 
   for (const flag of flags) {
     if ((bits & flag) === flag) return true

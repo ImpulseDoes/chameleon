@@ -11,7 +11,21 @@ export class PermissionsBitField extends BitField {
 
   public get isAdmin(): boolean {
 
-    return this.has('ADMINISTRATOR')
+    return super.has('ADMINISTRATOR')
+  }
+
+  public override has(bit: BitFieldResolvable): boolean {
+
+    if (super.has('ADMINISTRATOR')) return true
+    
+    return super.has(bit)
+  }
+
+  public override any(bit: BitFieldResolvable): boolean {
+
+    if (super.has('ADMINISTRATOR')) return true
+    
+    return super.any(bit)
   }
 
   public static from(bits: BitFieldResolvable): PermissionsBitField {
