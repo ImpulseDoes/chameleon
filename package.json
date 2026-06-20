@@ -1,6 +1,6 @@
 {
   "name": "@impulsedev/chameleon",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "description": "highly optimized, memory-efficient, and fully type-safe Discord API library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
