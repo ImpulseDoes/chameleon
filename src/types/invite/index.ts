@@ -34,6 +34,11 @@ export interface Invite {
   guildScheduledEvent?: GuildScheduledEvent
   flags?: number
   roles?: Partial<{ id: string; name: string; position: number; color: number; icon: string | null; unicodeEmoji: string | null }>[]
+  uses?: number
+  maxUses?: number
+  maxAge?: number
+  temporary?: boolean
+  createdAt?: number // Unix ms
 }
 
 export interface InviteMetadata {

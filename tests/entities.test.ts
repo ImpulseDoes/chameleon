@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { TEST_ENTITIES } from './mock/dataTest.js'
-import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild } from '../src/builders/index.ts'
+import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild, buildInvite } from '../src/builders/index.ts'
 import { buildInteraction } from '../src/builders/entities.ts'
 import { TongueStore } from '../src/client/store.ts'
 import type { Client } from '../src/client/client.ts'
@@ -60,6 +60,28 @@ describe('Chameleon Entity Builders', () => {
 
     expect(member.user?.id).toBe('301655085954367490')
     expect(member.roles).toEqual([])
+  })
+
+  it('should preserve invite metadata when present in the REST payload', () => {
+
+    const invite = buildInvite({
+      code: 'abc123',
+      type: 0,
+      channel: { id: 'ch1', type: 0 },
+      uses: 7,
+      max_uses: 10,
+      max_age: 3600,
+      temporary: true,
+      created_at: '2024-01-02T03:04:05.000Z',
+      expires_at: '2024-01-02T04:04:05.000Z'
+    })
+
+    expect(invite.uses).toBe(7)
+    expect(invite.maxUses).toBe(10)
+    expect(invite.maxAge).toBe(3600)
+    expect(invite.temporary).toBe(true)
+    expect(invite.createdAt).toBe(Date.parse('2024-01-02T03:04:05.000Z'))
+    expect(invite.expiresAt).toBe(Date.parse('2024-01-02T04:04:05.000Z'))
   })
 })
 

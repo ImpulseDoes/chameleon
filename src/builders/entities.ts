@@ -360,6 +360,11 @@ export function buildInvite(raw: Record<string, unknown>): Invite {
     ...(raw.guild_scheduled_event !== undefined ? { guildScheduledEvent: buildScheduledEvent(raw.guild_scheduled_event as Record<string, unknown>) } : {}),
     ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
     ...(raw.roles !== undefined ? { roles: raw.roles as Role[] } : {}),
+    ...(raw.uses !== undefined ? { uses: raw.uses as number } : {}),
+    ...(raw.max_uses !== undefined ? { maxUses: raw.max_uses as number } : {}),
+    ...(raw.max_age !== undefined ? { maxAge: raw.max_age as number } : {}),
+    ...(raw.temporary !== undefined ? { temporary: raw.temporary as boolean } : {}),
+    ...(raw.created_at !== undefined ? { createdAt: raw.created_at ? Date.parse(raw.created_at as string) : 0 } : {}),
   }
 }
 

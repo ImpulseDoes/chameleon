@@ -91,4 +91,36 @@ describe('GuildManager', () => {
     // Should have deleted from cache
     expect(client.cache.members.has('g1_u1')).toBe(false)
   })
+
+  it('should keep invite metadata on guild invite fetch', async () => {
+
+    const client = new Client({ token: 'test', intents: [] })
+    const manager = new GuildManager(client.rest, client.cache)
+
+    manager['rest'].get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [{
+        code: 'abc123',
+        type: 0,
+        channel: { id: 'ch1', type: 0 },
+        uses: 3,
+        max_uses: 5,
+        max_age: 900,
+        temporary: false,
+        created_at: '2024-02-03T04:05:06.000Z'
+      }]
+    })
+
+    const res = await manager.getInvites('g1')
+
+    expect(res.ok).toBe(true)
+
+    if (res.ok) {
+      expect(res.data[0]?.uses).toBe(3)
+      expect(res.data[0]?.maxUses).toBe(5)
+      expect(res.data[0]?.maxAge).toBe(900)
+      expect(res.data[0]?.temporary).toBe(false)
+      expect(res.data[0]?.createdAt).toBe(Date.parse('2024-02-03T04:05:06.000Z'))
+    }
+  })
 })
