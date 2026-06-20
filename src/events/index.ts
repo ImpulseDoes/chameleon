@@ -19,6 +19,7 @@ export type PartialChannel = Partial<Channel> & { id: string }
 export type PartialGuild = Partial<Guild> & { id: string }
 
 export type ChameleonEvent =
+  | { type: 'ERROR'; error: unknown; event?: string }
   | { type: 'READY' }
   | { type: 'RESUMED' }
   | { type: 'GUILD_CREATE'; guild: Guild; partial?: boolean }

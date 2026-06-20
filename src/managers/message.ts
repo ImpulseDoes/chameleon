@@ -1,6 +1,6 @@
 import type { ChameleonREST } from '../rest/index.js'
 import type { TongueStore } from '../client/store.js'
-import { buildMessage, serializeComponent, buildUser } from '../builders/index.js'
+import { buildMessage, serializeComponent, buildUser, validateMessageComponents } from '../builders/index.js'
 import type { AttachmentBuilder } from '../builders/attachment.js'
 import type { Message, MessageCreateOptions } from '../types/message/index.js'
 import type { User } from '../types/user/index.js'
@@ -78,6 +78,8 @@ export class MessageManager {
         files = payload.files
         delete data.files
       }
+
+      validateMessageComponents(data)
     }
 
     let result: ChameleonAPIResult<unknown>
@@ -113,6 +115,8 @@ export class MessageManager {
         files = payload.files
         delete data.files
       }
+
+      validateMessageComponents(data)
     }
 
     let result: ChameleonAPIResult<unknown>

@@ -6,7 +6,7 @@ import type { Embed } from '../types/message/index.js'
 import type { MessageComponent } from '../types/components/index.js'
 import type { ModalDef, ModalFieldDef, ModalFieldType } from '../components/define.js'
 import type { AttachmentBuilder } from '../builders/attachment.js'
-import { serializeComponent } from '../builders/index.js'
+import { serializeComponent, validateMessageComponents } from '../builders/index.js'
 import { INTERACTION_CALLBACK_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
 import { Label } from '../components/v2.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
@@ -87,6 +87,8 @@ export class BaseInteractionContext {
         files = payload.files
         delete data.files
       }
+
+      validateMessageComponents(data)
     }
     
     return files ? { data, files } : { data }

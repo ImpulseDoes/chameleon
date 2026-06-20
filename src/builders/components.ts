@@ -341,7 +341,16 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-      components: this._components.map(component => isBuildableComponent(component) ? component.build() : component),
+      components: this._components.map(component => {
+
+        const built = isBuildableComponent(component) ? component.build() : component
+        
+        if ((built as any).type === ComponentType.ACTION_ROW && (built as any).components) {
+          (built as any).components = (built as any).components.map((child: any) => this.wrapIfNecessary(child))
+        }
+        
+        return built
+      }),
     }
   }
 
@@ -349,8 +358,54 @@ export class ModalBuilder {
     return {
       title: this._title,
       custom_id: this._customId,
-      components: this._components.map(component => isJSONComponent(component) ? component.toJSON() : component),
+      components: this._components.map(component => {
+
+        const json = isJSONComponent(component) ? component.toJSON() : serializeComponent(component)
+        
+        if (json.type === ComponentType.ACTION_ROW && Array.isArray(json.components)) {
+          json.components = json.components.map((child: any) => this.wrapIfNecessaryJSON(child))
+        }
+        
+        return json
+      }),
     }
+  }
+
+  private wrapIfNecessary(child: MessageComponent): MessageComponent {
+
+    const typesToWrap: number[] = [
+      ComponentType.STRING_SELECT, ComponentType.USER_SELECT, ComponentType.ROLE_SELECT,
+      ComponentType.MENTIONABLE_SELECT, ComponentType.CHANNEL_SELECT,
+      ComponentType.RADIO_GROUP, ComponentType.CHECKBOX_GROUP, ComponentType.CHECKBOX
+    ]
+    
+    if (typesToWrap.includes(child.type as number)) {
+      return {
+        type: ComponentType.LABEL,
+        label: child.placeholder || child.label || 'Select',
+        components: [child]
+      }
+    }
+    return child
+  }
+
+  private wrapIfNecessaryJSON(child: any): any {
+    
+    const typesToWrap = [
+      ComponentType.STRING_SELECT, ComponentType.USER_SELECT, ComponentType.ROLE_SELECT,
+      ComponentType.MENTIONABLE_SELECT, ComponentType.CHANNEL_SELECT,
+      ComponentType.RADIO_GROUP, ComponentType.CHECKBOX_GROUP, ComponentType.CHECKBOX
+    ]
+    
+    if (typesToWrap.includes(child.type)) {
+      return {
+        type: ComponentType.LABEL,
+        label: child.placeholder || child.label || 'Select',
+        components: [child]
+      }
+    }
+
+    return child
   }
 }
 
@@ -427,4 +482,37 @@ export function serializeComponent(component: MessageComponent | { build?(): Mes
   }
   
   return toSnakeCase(component) as Record<string, unknown>
+}
+
+export function validateMessageComponents(data: Record<string, unknown>): void {
+
+  if (!Array.isArray(data.components) || data.components.length === 0) return
+
+  let hasV2 = false
+  let componentCount = 0
+
+  const checkComponent = (comp: any) => {
+    
+    if (!comp) return
+    componentCount++
+    
+    if (comp.type >= 9) hasV2 = true
+    if (comp.components && Array.isArray(comp.components)) {
+      for (const child of comp.components) checkComponent(child)
+    }
+  }
+
+  for (const comp of data.components) checkComponent(comp)
+
+  if (hasV2) {
+
+    if (componentCount > 40) {
+      throw new Error(`[Chameleon] Validation Error: V2 components cannot exceed 40 items. Received ${componentCount}`)
+    }
+    
+    if (data.content !== undefined || data.embeds !== undefined || data.sticker_ids !== undefined || data.poll !== undefined) {
+      throw new Error('[Chameleon] Validation Error: V2 components cannot be used in the same message with content, embeds, stickers, or polls')
+    }
+    data.flags = ((data.flags as number) ?? 0) | (1 << 15)
+  }
 }

@@ -215,8 +215,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
   /**
    * register middleware that runs between dispatch and event handlers
    */
-  public use(fn: MiddlewareFn): this {
+  public use(fn: MiddlewareFn, priority?: number): this {
+    if (priority !== undefined) fn.priority = priority
     this.middlewares.push(fn)
+    this.middlewares.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
     return this
   }
 
@@ -319,7 +321,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       if (first) await first(data, next)
 
     } catch (error) {
-      console.error(`[Chameleon] Error in ${String(event)} middleware:`, error)
+      this.emitError(error, String(event))
     }
   }
 
@@ -336,9 +338,36 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       try {
         await handler(data)
       } catch (error) {
-        console.error(`[Chameleon] Error in ${String(event)} listener:`, error)
+        this.emitError(error, String(event))
       }
     }
+  }
+
+  /**
+   * emit a structured error event, falling back to console.error if no ERROR listener is registered
+   */
+  private emitError(error: unknown, event?: string): void {
+    const handlers = this.listeners.get('ERROR')
+    if (handlers && handlers.length > 0) {
+      for (const handler of handlers) {
+        try {
+          handler({ type: 'ERROR', error, event } as unknown)
+        } catch {
+          // prevent infinite recursion — if the error handler itself throws, fall back to console
+          console.error('[Chameleon] Error in ERROR handler:', error)
+        }
+      }
+    } else {
+      console.error(`[Chameleon] Unhandled error in ${event ?? 'unknown'}:`, error)
+    }
+  }
+
+  /**
+   * redact the bot token for safe debug logging
+   */
+  private redactToken(text: string): string {
+    if (!this.token) return text
+    return text.replaceAll(this.token, '[REDACTED]')
   }
 
   private setupGateway(): void {
@@ -404,6 +433,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           for (const raw of d.channels as Record<string, unknown>[]) {
             const ch = buildChannel(raw, guild.id)
             this.cache.channels.set(ch.id, ch)
+            this.cache.addToIndex(this.cache.indexes.channelsByGuild, guild.id, ch.id)
             if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
@@ -413,6 +443,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           for (const raw of d.roles as Record<string, unknown>[]) {
             const role = buildRole(raw)
             this.cache.roles.set(role.id, role)
+            this.cache.addToIndex(this.cache.indexes.rolesByGuild, guild.id, role.id)
             if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
         }
@@ -422,7 +453,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           for (const raw of d.members as Record<string, unknown>[]) {
             const member = buildMember(raw, guild.id, this.cache)
             if (member.user?.id) {
-              this.cache.members.set(TongueStore.memberKey(guild.id, member.user.id), member)
+              const memberKey = TongueStore.memberKey(guild.id, member.user.id)
+              this.cache.members.set(memberKey, member)
+              this.cache.addToIndex(this.cache.indexes.membersByGuild, guild.id, memberKey)
             }
             if (++i % 1000 === 0) await new Promise(r => setImmediate(r))
           }
@@ -514,6 +547,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           void this.dispatch('GUILD_UNAVAILABLE', { type: 'GUILD_UNAVAILABLE', guildId })
         } else {
           this.cache.guilds.delete(guildId)
+          this.cache.indexes.channelsByGuild.delete(guildId)
+          this.cache.indexes.rolesByGuild.delete(guildId)
+          this.cache.indexes.membersByGuild.delete(guildId)
           void this.dispatch('GUILD_DELETE', { type: 'GUILD_DELETE', guildId })
         }
 
@@ -523,6 +559,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'CHANNEL_CREATE': {
         const channel = buildChannel(d)
         this.cache.channels.set(channel.id, channel)
+        if (d.guild_id) {
+          this.cache.addToIndex(this.cache.indexes.channelsByGuild, d.guild_id as string, channel.id)
+        }
         void this.dispatch('CHANNEL_CREATE', { type: 'CHANNEL_CREATE', channel, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
         break
       }
@@ -539,6 +578,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const channelId = d.id as string
         const channel = this.cache.channels.get(channelId)
         this.cache.channels.delete(channelId)
+        if (d.guild_id) {
+          this.cache.removeFromIndex(this.cache.indexes.channelsByGuild, d.guild_id as string, channelId)
+        }
         void this.dispatch('CHANNEL_DELETE', { type: 'CHANNEL_DELETE', channelId, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}), ...(channel ? { channel } : {}) })
         break
       }
@@ -589,7 +631,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const guildId = d.guild_id as string
         const member = buildMember(d, guildId, this.cache)
         if (member.user?.id) {
-          this.cache.members.set(TongueStore.memberKey(guildId, member.user.id), member)
+          const memberKey = TongueStore.memberKey(guildId, member.user.id)
+          this.cache.members.set(memberKey, member)
+          this.cache.addToIndex(this.cache.indexes.membersByGuild, guildId, memberKey)
         }
         void this.dispatch('GUILD_MEMBER_ADD', { type: 'GUILD_MEMBER_ADD', member, guildId })
         break
@@ -623,6 +667,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const memberKey = TongueStore.memberKey(guildId, user.id)
         const member = this.cache.members.get(memberKey)
         this.cache.members.delete(memberKey)
+        this.cache.removeFromIndex(this.cache.indexes.membersByGuild, guildId, memberKey)
         void this.dispatch('GUILD_MEMBER_REMOVE', { type: 'GUILD_MEMBER_REMOVE', user, guildId, ...(member ? { member } : {}) })
         break
       }
@@ -630,6 +675,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'GUILD_ROLE_CREATE': {
         const role = buildRole(d.role as Record<string, unknown>)
         this.cache.roles.set(role.id, role)
+        this.cache.addToIndex(this.cache.indexes.rolesByGuild, d.guild_id as string, role.id)
         void this.dispatch('GUILD_ROLE_CREATE', { type: 'GUILD_ROLE_CREATE', guildId: d.guild_id as string, role })
         break
       }
@@ -647,6 +693,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const roleId = d.role_id as string
         const role = this.cache.roles.get(roleId)
         this.cache.roles.delete(roleId)
+        this.cache.removeFromIndex(this.cache.indexes.rolesByGuild, d.guild_id as string, roleId)
         void this.dispatch('GUILD_ROLE_DELETE', { type: 'GUILD_ROLE_DELETE', guildId: d.guild_id as string, roleId, ...(role ? { role } : {}) })
         break
       }

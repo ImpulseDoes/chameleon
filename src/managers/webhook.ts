@@ -1,5 +1,5 @@
 import type { ChameleonREST } from '../rest/index.js'
-import { buildWebhook, serializeComponent, buildMessage } from '../builders/index.js'
+import { buildWebhook, serializeComponent, buildMessage, validateMessageComponents } from '../builders/index.js'
 import type { AttachmentBuilder } from '../builders/attachment.js'
 import type { TongueStore } from '../client/store.js'
 import type { Webhook } from '../types/webhook/index.js'
@@ -122,6 +122,8 @@ export class WebhookManager {
       if (payload.files && payload.files.length > 0) {
         files = payload.files
       }
+
+      validateMessageComponents(data)
     }
 
     let url = `/webhooks/${webhookId}/${token}`

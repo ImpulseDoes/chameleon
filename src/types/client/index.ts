@@ -22,9 +22,14 @@ export interface ClientOptions<TIntents extends readonly IntentResolvable[]> {
 
 export type EventMap = {
   [K in ChameleonEvent['type']]: Extract<ChameleonEvent, { type: K }>
+} & {
+  ERROR: { type: 'ERROR'; error: unknown; event?: string }
 }
 
-export type MiddlewareFn = (event: ChameleonEvent, next: () => void) => void | Promise<void>
+export type MiddlewareFn = {
+  (event: ChameleonEvent, next: () => void): void | Promise<void>
+  priority?: number
+}
 
 export interface AwaitMessagesOptions {
   filter?: (message: Message) => boolean

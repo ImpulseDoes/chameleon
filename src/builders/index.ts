@@ -46,6 +46,56 @@ export function buildChannel(raw: Record<string, unknown>, guildId?: string): Ch
     userLimit: (raw.user_limit as number) ?? undefined,
     rateLimitPerUser: (raw.rate_limit_per_user as number) ?? 0,
     permissionOverwrites: (raw.permission_overwrites as unknown[]) ?? [],
+    ...(raw.icon !== undefined ? { icon: raw.icon as string | null } : {}),
+    ...(raw.owner_id !== undefined ? { ownerId: raw.owner_id as string } : {}),
+    ...(raw.application_id !== undefined ? { applicationId: raw.application_id as string } : {}),
+    ...(raw.managed !== undefined ? { managed: raw.managed as boolean } : {}),
+    ...(raw.last_pin_timestamp !== undefined ? { lastPinTimestamp: raw.last_pin_timestamp ? Date.parse(raw.last_pin_timestamp as string) : null } : {}),
+    ...(raw.rtc_region !== undefined ? { rtcRegion: raw.rtc_region as string | null } : {}),
+    ...(raw.video_quality_mode !== undefined ? { videoQualityMode: raw.video_quality_mode as number } : {}),
+    ...(raw.message_count !== undefined ? { messageCount: raw.message_count as number } : {}),
+    ...(raw.member_count !== undefined ? { memberCount: raw.member_count as number } : {}),
+    ...(raw.thread_metadata !== undefined ? { 
+      threadMetadata: {
+        archived: (raw.thread_metadata as any).archived,
+        autoArchiveDuration: (raw.thread_metadata as any).auto_archive_duration,
+        archiveTimestamp: Date.parse((raw.thread_metadata as any).archive_timestamp),
+        locked: (raw.thread_metadata as any).locked,
+        invitable: (raw.thread_metadata as any).invitable,
+        createTimestamp: (raw.thread_metadata as any).create_timestamp ? Date.parse((raw.thread_metadata as any).create_timestamp) : null
+      }
+    } : {}),
+    ...(raw.member !== undefined ? { 
+      member: {
+        id: (raw.member as any).id,
+        userId: (raw.member as any).user_id,
+        joinTimestamp: Date.parse((raw.member as any).join_timestamp),
+        flags: (raw.member as any).flags
+      }
+    } : {}),
+    ...(raw.default_auto_archive_duration !== undefined ? { defaultAutoArchiveDuration: raw.default_auto_archive_duration as number } : {}),
+    ...(raw.permissions !== undefined ? { permissions: raw.permissions as string } : {}),
+    ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
+    ...(raw.total_message_sent !== undefined ? { totalMessageSent: raw.total_message_sent as number } : {}),
+    ...(raw.available_tags !== undefined ? { 
+      availableTags: (raw.available_tags as any[]).map(t => ({
+        id: t.id,
+        name: t.name,
+        moderated: t.moderated,
+        emojiId: t.emoji_id,
+        emojiName: t.emoji_name
+      }))
+    } : {}),
+    ...(raw.applied_tags !== undefined ? { appliedTags: raw.applied_tags as string[] } : {}),
+    ...(raw.default_reaction_emoji !== undefined ? { 
+      defaultReactionEmoji: raw.default_reaction_emoji ? {
+        emojiId: (raw.default_reaction_emoji as any).emoji_id,
+        emojiName: (raw.default_reaction_emoji as any).emoji_name
+      } : null
+    } : {}),
+    ...(raw.default_thread_rate_limit_per_user !== undefined ? { defaultThreadRateLimitPerUser: raw.default_thread_rate_limit_per_user as number } : {}),
+    ...(raw.default_sort_order !== undefined ? { defaultSortOrder: raw.default_sort_order as number | null } : {}),
+    ...(raw.default_forum_layout !== undefined ? { defaultForumLayout: raw.default_forum_layout as number } : {}),
   } as Channel
 }
 
@@ -146,6 +196,16 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
   const stickerItems = (raw.sticker_items as import('../types/expressions/index.ts').StickerItem[]) ?? oldMessage?.stickerItems
   const stickers = (raw.stickers as import('../types/expressions/index.ts').Sticker[]) ?? oldMessage?.stickers
   const poll = (raw.poll as import('../types/message/index.ts').Poll) ?? oldMessage?.poll
+  const reactions = raw.reactions 
+    ? (raw.reactions as any[]).map(r => ({
+        count: r.count,
+        countDetails: r.count_details ? { burst: r.count_details.burst, normal: r.count_details.normal } : { burst: 0, normal: r.count },
+        me: r.me ?? false,
+        meBurst: r.me_burst ?? false,
+        emoji: r.emoji,
+        burstColors: r.burst_colors ?? []
+      }))
+    : oldMessage?.reactions ?? []
   const messageReference = (raw.message_reference as import('../types/message/index.ts').MessageReference | undefined) ?? oldMessage?.messageReference
   const referencedMessage = (raw.referenced_message as Message | null | undefined) ?? oldMessage?.referencedMessage
   const interactionMetadata = (raw.interaction_metadata as import('../types/message/index.ts').MessageInteractionMetadata | undefined) ?? oldMessage?.interactionMetadata
@@ -195,6 +255,7 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     ...(stickerItems ? { stickerItems } : {}),
     ...(stickers ? { stickers } : {}),
     ...(poll ? { poll } : {}),
+    ...(reactions.length > 0 ? { reactions } : {}),
     ...(raw.call ? { call: raw.call as import('../types/message/index.ts').MessageCall } : oldMessage?.call ? { call: oldMessage.call } : {}),
     has: {
       attachments: attachments.length > 0 && !hasVoiceMessage,

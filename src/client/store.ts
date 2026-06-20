@@ -41,6 +41,11 @@ export class TongueStore {
   public autoModRules: Tongue<string, AutoModerationRule>
   public integrations: Tongue<string, Integration>
   public voiceStates: Tongue<string, Voice>
+  public indexes = {
+    channelsByGuild: new Map<string, Set<string>>(),
+    rolesByGuild: new Map<string, Set<string>>(),
+    membersByGuild: new Map<string, Set<string>>(),
+  }
 
   constructor(options?: StoreOptions) {
     this.guilds = new Tongue<string, Guild>(options?.guilds ?? 100)
@@ -60,5 +65,32 @@ export class TongueStore {
 
   public static memberKey(guildId: string, userId: string): string {
     return `${guildId}_${userId}`
+  }
+
+  public addToIndex(index: Map<string, Set<string>>, groupKey: string, entityId: string): void {
+
+    let set = index.get(groupKey)
+
+    if (!set) {
+      set = new Set()
+      index.set(groupKey, set)
+    }
+
+    set.add(entityId)
+  }
+
+  public removeFromIndex(index: Map<string, Set<string>>, groupKey: string, entityId: string): void {
+
+    const set = index.get(groupKey)
+
+    if (set) {
+
+      set.delete(entityId)
+      if (set.size === 0) index.delete(groupKey)
+    }
+  }
+
+  public getByIndex(index: Map<string, Set<string>>, groupKey: string): Set<string> {
+    return index.get(groupKey) ?? new Set()
   }
 }
