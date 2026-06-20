@@ -537,17 +537,20 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'CHANNEL_DELETE': {
         const channelId = d.id as string
+        const channel = this.cache.channels.get(channelId)
         this.cache.channels.delete(channelId)
-        void this.dispatch('CHANNEL_DELETE', { type: 'CHANNEL_DELETE', channelId, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}) })
+        void this.dispatch('CHANNEL_DELETE', { type: 'CHANNEL_DELETE', channelId, ...(d.guild_id ? { guild: { id: d.guild_id as string } } : {}), ...(channel ? { channel } : {}) })
         break
       }
 
       case 'CHANNEL_PINS_UPDATE': {
+        const channel = this.cache.channels.get(d.channel_id as string)
         void this.dispatch('CHANNEL_PINS_UPDATE', {
           type: 'CHANNEL_PINS_UPDATE',
           channelId: d.channel_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          ...(d.last_pin_timestamp !== undefined ? { lastPinTimestamp: d.last_pin_timestamp ? Date.parse(d.last_pin_timestamp as string) : null } : {})
+          ...(d.last_pin_timestamp !== undefined ? { lastPinTimestamp: d.last_pin_timestamp ? Date.parse(d.last_pin_timestamp as string) : null } : {}),
+          ...(channel ? { channel } : {})
         })
         break
       }
@@ -569,13 +572,15 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'THREAD_DELETE': {
         const id = d.id as string
+        const thread = this.cache.channels.get(id)
         this.cache.channels.delete(id)
         void this.dispatch('THREAD_DELETE', {
           type: 'THREAD_DELETE',
           id,
           guildId: d.guild_id as string,
           parentId: d.parent_id as string,
-          channelType: d.type as number
+          channelType: d.type as number,
+          ...(thread ? { thread } : {})
         })
         break
       }
@@ -615,8 +620,10 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const guildId = d.guild_id as string
         const rawUser = d.user as Record<string, unknown>
         const user = buildUser(rawUser)
-        this.cache.members.delete(TongueStore.memberKey(guildId, user.id))
-        void this.dispatch('GUILD_MEMBER_REMOVE', { type: 'GUILD_MEMBER_REMOVE', user, guildId })
+        const memberKey = TongueStore.memberKey(guildId, user.id)
+        const member = this.cache.members.get(memberKey)
+        this.cache.members.delete(memberKey)
+        void this.dispatch('GUILD_MEMBER_REMOVE', { type: 'GUILD_MEMBER_REMOVE', user, guildId, ...(member ? { member } : {}) })
         break
       }
 
@@ -638,8 +645,9 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'GUILD_ROLE_DELETE': {
         const roleId = d.role_id as string
+        const role = this.cache.roles.get(roleId)
         this.cache.roles.delete(roleId)
-        void this.dispatch('GUILD_ROLE_DELETE', { type: 'GUILD_ROLE_DELETE', guildId: d.guild_id as string, roleId })
+        void this.dispatch('GUILD_ROLE_DELETE', { type: 'GUILD_ROLE_DELETE', guildId: d.guild_id as string, roleId, ...(role ? { role } : {}) })
         break
       }
 
@@ -724,6 +732,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.members.set(TongueStore.memberKey(d.guild_id as string, reactionMember.user.id), reactionMember)
           }
         }
+        const message = this.cache.messages.get(d.message_id as string)
+        const user = this.cache.users.get(d.user_id as string)
         void this.dispatch('MESSAGE_REACTION_ADD', {
           type: 'MESSAGE_REACTION_ADD',
           userId: d.user_id as string,
@@ -731,40 +741,58 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>,
-          ...(reactionMember ? { member: reactionMember } : {})
+          ...(reactionMember ? { member: reactionMember } : {}),
+          ...(message ? { message } : {}),
+          ...(user ? { user } : {}),
+          burst: (d.burst as boolean) ?? false,
+          burstColors: (d.burst_colors as string[]) ?? [],
+          reactionType: (d.type as number) ?? 0,
+          ...(d.message_author_id ? { messageAuthorId: d.message_author_id as string } : {})
         })
         break
       }
 
       case 'MESSAGE_REACTION_REMOVE': {
+        const message = this.cache.messages.get(d.message_id as string)
+        const user = this.cache.users.get(d.user_id as string)
+        const member = d.guild_id ? this.cache.members.get(TongueStore.memberKey(d.guild_id as string, d.user_id as string)) : undefined
         void this.dispatch('MESSAGE_REACTION_REMOVE', {
           type: 'MESSAGE_REACTION_REMOVE',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>
+          emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>,
+          ...(message ? { message } : {}),
+          ...(user ? { user } : {}),
+          ...(member ? { member } : {}),
+          burst: (d.burst as boolean) ?? false,
+          reactionType: (d.type as number) ?? 0
         })
         break
       }
 
       case 'MESSAGE_REACTION_REMOVE_ALL': {
+        const message = this.cache.messages.get(d.message_id as string)
         void this.dispatch('MESSAGE_REACTION_REMOVE_ALL', {
           type: 'MESSAGE_REACTION_REMOVE_ALL',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
-          ...(d.guild_id ? { guildId: d.guild_id as string } : {})
+          ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
+          ...(message ? { message } : {})
         })
         break
       }
 
       case 'MESSAGE_REACTION_REMOVE_EMOJI': {
+        const message = this.cache.messages.get(d.message_id as string)
         void this.dispatch('MESSAGE_REACTION_REMOVE_EMOJI', {
           type: 'MESSAGE_REACTION_REMOVE_EMOJI',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>
+          emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>,
+          ...(message ? { message } : {})
         })
         break
       }
@@ -814,6 +842,31 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           token: d.token as string,
           guildId: d.guild_id as string,
           endpoint: d.endpoint as string | null
+        })
+        break
+      }
+
+      case 'VOICE_CHANNEL_EFFECT_SEND': {
+        void this.dispatch('VOICE_CHANNEL_EFFECT_SEND', {
+          type: 'VOICE_CHANNEL_EFFECT_SEND',
+          channelId: d.channel_id as string,
+          guildId: d.guild_id as string,
+          userId: d.user_id as string,
+          ...(d.emoji ? { emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji> } : {}),
+          ...(d.animation_type !== undefined ? { animationType: d.animation_type as number } : {}),
+          ...(d.animation_id !== undefined ? { animationId: d.animation_id as number } : {}),
+          ...(d.sound_id !== undefined ? { soundId: d.sound_id as string | number } : {}),
+          ...(d.sound_volume !== undefined ? { soundVolume: d.sound_volume as number } : {})
+        })
+        break
+      }
+
+      case 'VOICE_CHANNEL_STATUS_UPDATE': {
+        void this.dispatch('VOICE_CHANNEL_STATUS_UPDATE', {
+          type: 'VOICE_CHANNEL_STATUS_UPDATE',
+          channelId: d.id as string,
+          guildId: d.guild_id as string,
+          status: (d.status as string | null) ?? null
         })
         break
       }
@@ -889,13 +942,17 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             this.cache.members.set(TongueStore.memberKey(d.guild_id as string, typingMember.user.id), typingMember)
           }
         }
+        const user = this.cache.users.get(d.user_id as string)
+        const channel = this.cache.channels.get(d.channel_id as string)
         void this.dispatch('TYPING_START', {
           type: 'TYPING_START',
           channelId: d.channel_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           userId: d.user_id as string,
           timestamp: d.timestamp as number,
-          ...(typingMember ? { member: typingMember } : {})
+          ...(typingMember ? { member: typingMember } : {}),
+          ...(user ? { user } : {}),
+          ...(channel ? { channel } : {})
         })
         break
       }
@@ -921,25 +978,37 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'MESSAGE_POLL_VOTE_ADD': {
+        const message = this.cache.messages.get(d.message_id as string)
+        const user = this.cache.users.get(d.user_id as string)
+        const member = d.guild_id ? this.cache.members.get(TongueStore.memberKey(d.guild_id as string, d.user_id as string)) : undefined
         void this.dispatch('MESSAGE_POLL_VOTE_ADD', {
           type: 'MESSAGE_POLL_VOTE_ADD',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          answerId: d.answer_id as number
+          answerId: d.answer_id as number,
+          ...(message ? { message } : {}),
+          ...(user ? { user } : {}),
+          ...(member ? { member } : {})
         })
         break
       }
 
       case 'MESSAGE_POLL_VOTE_REMOVE': {
+        const message = this.cache.messages.get(d.message_id as string)
+        const user = this.cache.users.get(d.user_id as string)
+        const member = d.guild_id ? this.cache.members.get(TongueStore.memberKey(d.guild_id as string, d.user_id as string)) : undefined
         void this.dispatch('MESSAGE_POLL_VOTE_REMOVE', {
           type: 'MESSAGE_POLL_VOTE_REMOVE',
           userId: d.user_id as string,
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          answerId: d.answer_id as number
+          answerId: d.answer_id as number,
+          ...(message ? { message } : {}),
+          ...(user ? { user } : {}),
+          ...(member ? { member } : {})
         })
         break
       }
@@ -1114,7 +1183,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           ...(d.message_id ? { messageId: d.message_id as string } : {}),
           ...(d.content !== undefined ? { content: d.content as string } : {}),
           ...(d.matched_keyword !== undefined ? { matchedKeyword: d.matched_keyword as string | null } : {}),
-          ...(d.matched_content !== undefined ? { matchedContent: d.matched_content as string | null } : {})
+          ...(d.matched_content !== undefined ? { matchedContent: d.matched_content as string | null } : {}),
+          ...(d.alert_system_message_id ? { alertSystemMessageId: d.alert_system_message_id as string } : {})
         })
         break
       }
@@ -1132,13 +1202,49 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         break
       }
       case 'INTEGRATION_DELETE': {
-        this.cache.integrations.delete(d.id as string)
+        const id = d.id as string
+        this.cache.integrations.delete(id)
         void this.dispatch('INTEGRATION_DELETE', {
           type: 'INTEGRATION_DELETE',
-          id: d.id as string,
+          id,
           guildId: d.guild_id as string,
           ...(d.application_id ? { applicationId: d.application_id as string } : {})
         })
+        break
+      }
+
+      case 'GUILD_SOUNDBOARD_SOUND_CREATE': {
+        void this.dispatch('GUILD_SOUNDBOARD_SOUND_CREATE', { type: 'GUILD_SOUNDBOARD_SOUND_CREATE', guildId: d.guild_id as string, sound: d as unknown as import('../types/soundboard/index.ts').SoundboardSound })
+        break
+      }
+      case 'GUILD_SOUNDBOARD_SOUND_UPDATE': {
+        void this.dispatch('GUILD_SOUNDBOARD_SOUND_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUND_UPDATE', guildId: d.guild_id as string, sound: d as unknown as import('../types/soundboard/index.ts').SoundboardSound })
+        break
+      }
+      case 'GUILD_SOUNDBOARD_SOUND_DELETE': {
+        void this.dispatch('GUILD_SOUNDBOARD_SOUND_DELETE', { type: 'GUILD_SOUNDBOARD_SOUND_DELETE', guildId: d.guild_id as string, soundId: d.sound_id as string })
+        break
+      }
+      case 'GUILD_SOUNDBOARD_SOUNDS_UPDATE': {
+        void this.dispatch('GUILD_SOUNDBOARD_SOUNDS_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUNDS_UPDATE', guildId: d.guild_id as string, sounds: d.soundboard_sounds as import('../types/soundboard/index.ts').SoundboardSound[] })
+        break
+      }
+
+      case 'SUBSCRIPTION_CREATE': {
+        void this.dispatch('SUBSCRIPTION_CREATE', { type: 'SUBSCRIPTION_CREATE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        break
+      }
+      case 'SUBSCRIPTION_UPDATE': {
+        void this.dispatch('SUBSCRIPTION_UPDATE', { type: 'SUBSCRIPTION_UPDATE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        break
+      }
+      case 'SUBSCRIPTION_DELETE': {
+        void this.dispatch('SUBSCRIPTION_DELETE', { type: 'SUBSCRIPTION_DELETE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        break
+      }
+
+      case 'GUILD_AUDIT_LOG_ENTRY_CREATE': {
+        void this.dispatch('GUILD_AUDIT_LOG_ENTRY_CREATE', { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE', guildId: d.guild_id as string, entry: d as unknown as import('../types/audit/index.ts').AuditLogEntry })
         break
       }
     }

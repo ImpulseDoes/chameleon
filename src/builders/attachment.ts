@@ -7,8 +7,9 @@ export class AttachmentBuilder {
   public data: Buffer | Uint8Array
   public description?: string
   public contentType?: string
+  public spoiler: boolean = false
 
-  constructor(data: Buffer | Uint8Array | string, options?: { name?: string, description?: string, contentType?: string }) {
+  constructor(data: Buffer | Uint8Array | string, options?: { name?: string, description?: string, contentType?: string, spoiler?: boolean }) {
 
     if (typeof data === 'string') {
 
@@ -23,6 +24,7 @@ export class AttachmentBuilder {
 
     if (options?.description !== undefined) this.description = options.description
     if (options?.contentType !== undefined) this.contentType = options.contentType
+    if (options?.spoiler !== undefined) this.spoiler = options.spoiler
   }
 
   public setName(name: string): this {
@@ -39,11 +41,22 @@ export class AttachmentBuilder {
     return this
   }
 
+  public setSpoiler(spoiler: boolean = true): this {
+
+    this.spoiler = spoiler
+
+    return this
+  }
+
+  public get finalName(): string {
+    return this.spoiler && !this.name.startsWith('SPOILER_') ? `SPOILER_${this.name}` : this.name
+  }
+
   public toAttachmentJSON(index: number): Record<string, unknown> {
 
     return {
       id: index,
-      filename: this.name,
+      filename: this.finalName,
       ...(this.description ? { description: this.description } : {})
     }
   }

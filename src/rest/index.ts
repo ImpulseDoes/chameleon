@@ -175,7 +175,7 @@ export class ChameleonREST {
       const binary = new Uint8Array(uint8)
       const blob = new Blob([binary.buffer], { type: file.contentType ?? 'application/octet-stream' })
       
-      formData.append(`files[${i}]`, blob, file.name)
+      formData.append(`files[${i}]`, blob, file.finalName)
     }
 
     try {

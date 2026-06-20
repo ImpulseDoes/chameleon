@@ -28,19 +28,19 @@ export type ChameleonEvent =
   | { type: 'GUILD_DELETE'; guildId: string }
   | { type: 'CHANNEL_CREATE'; channel: Channel; guild?: PartialGuild }
   | { type: 'CHANNEL_UPDATE'; oldChannel?: Channel; channel: Channel; guild?: PartialGuild }
-  | { type: 'CHANNEL_DELETE'; channelId: string; guild?: PartialGuild }
-  | { type: 'CHANNEL_PINS_UPDATE'; channelId: string; guildId?: string; lastPinTimestamp?: number | null }
+  | { type: 'CHANNEL_DELETE'; channelId: string; guild?: PartialGuild; channel?: Channel }
+  | { type: 'CHANNEL_PINS_UPDATE'; channelId: string; guildId?: string; lastPinTimestamp?: number | null; channel?: Channel }
   | { type: 'THREAD_CREATE'; channel: Channel }
   | { type: 'THREAD_UPDATE'; oldChannel?: Channel; channel: Channel }
-  | { type: 'THREAD_DELETE'; id: string; guildId: string; parentId: string; channelType: number }
+  | { type: 'THREAD_DELETE'; id: string; guildId: string; parentId: string; channelType: number; thread?: Channel }
   | { type: 'THREAD_LIST_SYNC'; guildId: string; channelIds?: string[]; threads: Channel[]; members: unknown[] }
   | { type: 'GUILD_MEMBER_ADD'; member: Member; guildId: string }
   | { type: 'GUILD_MEMBER_UPDATE'; oldMember?: Member; guildId: string; user: User; roles: string[]; nick?: string | null; joinedAt?: number | null }
-  | { type: 'GUILD_MEMBER_REMOVE'; user: User; guildId: string }
+  | { type: 'GUILD_MEMBER_REMOVE'; user: User; guildId: string; member?: Member }
   | { type: 'GUILD_MEMBERS_CHUNK'; guildId: string; members: Member[]; chunkIndex: number; chunkCount: number; notFound?: string[]; nonce?: string }
   | { type: 'GUILD_ROLE_CREATE'; guildId: string; role: Role }
   | { type: 'GUILD_ROLE_UPDATE'; oldRole?: Role; guildId: string; role: Role }
-  | { type: 'GUILD_ROLE_DELETE'; guildId: string; roleId: string }
+  | { type: 'GUILD_ROLE_DELETE'; guildId: string; roleId: string; role?: Role }
   | { type: 'GUILD_BAN_ADD'; guildId: string; user: User }
   | { type: 'GUILD_BAN_REMOVE'; guildId: string; user: User }
   | { type: 'GUILD_EMOJIS_UPDATE'; guildId: string; emojis: Emoji[] }
@@ -49,13 +49,14 @@ export type ChameleonEvent =
   | { type: 'MESSAGE_UPDATE'; oldMessage?: Message; message: Message; channel: PartialChannel }
   | { type: 'MESSAGE_DELETE'; messageId: string; channelId: string; guildId?: string; message?: Message }
   | { type: 'MESSAGE_DELETE_BULK'; messageIds: string[]; channelId: string; guildId?: string; messages?: Message[] }
-  | { type: 'MESSAGE_REACTION_ADD'; userId: string; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji>; member?: Member }
-  | { type: 'MESSAGE_REACTION_REMOVE'; userId: string; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji> }
-  | { type: 'MESSAGE_REACTION_REMOVE_ALL'; channelId: string; messageId: string; guildId?: string }
-  | { type: 'MESSAGE_REACTION_REMOVE_EMOJI'; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji> }
+  | { type: 'MESSAGE_REACTION_ADD'; userId: string; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji>; member?: Member; message?: Message; user?: User; messageAuthorId?: string; burst: boolean; burstColors: string[]; reactionType: number }
+  | { type: 'MESSAGE_REACTION_REMOVE'; userId: string; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji>; message?: Message; user?: User; member?: Member; burst: boolean; reactionType: number }
+  | { type: 'MESSAGE_REACTION_REMOVE_ALL'; channelId: string; messageId: string; guildId?: string; message?: Message }
+  | { type: 'MESSAGE_REACTION_REMOVE_EMOJI'; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji>; message?: Message }
   | { type: 'INTERACTION_CREATE'; interaction: Interaction }
   | { type: 'VOICE_STATE_UPDATE'; oldVoiceState?: Voice; voiceState: Voice }
   | { type: 'VOICE_SERVER_UPDATE'; token: string; guildId: string; endpoint: string | null }
+  | { type: 'VOICE_CHANNEL_STATUS_UPDATE'; channelId: string; guildId: string; status: string | null }
   | { type: 'STAGE_INSTANCE_CREATE'; stageInstance: StageInstance }
   | { type: 'STAGE_INSTANCE_UPDATE'; stageInstance: StageInstance }
   | { type: 'STAGE_INSTANCE_DELETE'; stageInstance: StageInstance }
@@ -66,7 +67,7 @@ export type ChameleonEvent =
   | { type: 'SUBSCRIPTION_CREATE'; subscription: Subscription }
   | { type: 'SUBSCRIPTION_UPDATE'; subscription: Subscription }
   | { type: 'SUBSCRIPTION_DELETE'; subscription: Subscription }
-  | { type: 'VOICE_CHANNEL_EFFECT_SEND'; channelId: string; guildId: string; userId: string; emoji?: Partial<Emoji> }
+  | { type: 'VOICE_CHANNEL_EFFECT_SEND'; channelId: string; guildId: string; userId: string; emoji?: Partial<Emoji>; animationType?: number; animationId?: number; soundId?: string | number; soundVolume?: number }
   | { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE'; guildId: string; entry: AuditLogEntry }
   | { type: 'THREAD_MEMBERS_UPDATE'; id: string; guildId: string; memberCount: number; addedMembers?: Partial<Member>[]; removedMemberIds?: string[] }
   | { type: 'THREAD_MEMBER_UPDATE'; member: Partial<Member>; guildId: string }
@@ -79,7 +80,7 @@ export type ChameleonEvent =
   | { type: 'AUTO_MODERATION_RULE_CREATE'; rule: AutoModerationRule }
   | { type: 'AUTO_MODERATION_RULE_UPDATE'; rule: AutoModerationRule }
   | { type: 'AUTO_MODERATION_RULE_DELETE'; rule: AutoModerationRule }
-  | { type: 'AUTO_MODERATION_ACTION_EXECUTION'; guildId: string; action: AutoModerationAction; ruleId: string; ruleTriggerType: number; userId: string; channelId?: string; messageId?: string; content?: string; matchedKeyword?: string | null; matchedContent?: string | null }
+  | { type: 'AUTO_MODERATION_ACTION_EXECUTION'; guildId: string; action: AutoModerationAction; ruleId: string; ruleTriggerType: number; userId: string; channelId?: string; messageId?: string; content?: string; matchedKeyword?: string | null; matchedContent?: string | null; alertSystemMessageId?: string }
   | { type: 'INVITE_CREATE'; channelId: string; code: string; guildId?: string; inviter?: User; maxAge: number; maxUses: number; temporary: boolean }
   | { type: 'INVITE_DELETE'; channelId: string; code: string; guildId?: string }
   | { type: 'GUILD_INTEGRATIONS_UPDATE'; guildId: string }
@@ -90,10 +91,10 @@ export type ChameleonEvent =
   | { type: 'ENTITLEMENT_UPDATE'; entitlement: Entitlement }
   | { type: 'ENTITLEMENT_DELETE'; entitlement: Entitlement }
   | { type: 'PRESENCE_UPDATE'; user: Partial<User> & { id: string }; guildId: string; status: string; activities: unknown[]; clientStatus: unknown }
-  | { type: 'TYPING_START'; channelId: string; guildId?: string; userId: string; timestamp: number; member?: Member }
+  | { type: 'TYPING_START'; channelId: string; guildId?: string; userId: string; timestamp: number; member?: Member; user?: User; channel?: Channel }
   | { type: 'USER_UPDATE'; oldUser?: User; user: User }
   | { type: 'WEBHOOKS_UPDATE'; guildId: string; channelId: string }
-  | { type: 'MESSAGE_POLL_VOTE_ADD'; userId: string; channelId: string; messageId: string; guildId?: string; answerId: number }
-  | { type: 'MESSAGE_POLL_VOTE_REMOVE'; userId: string; channelId: string; messageId: string; guildId?: string; answerId: number }
+  | { type: 'MESSAGE_POLL_VOTE_ADD'; userId: string; channelId: string; messageId: string; guildId?: string; answerId: number; message?: Message; user?: User; member?: Member }
+  | { type: 'MESSAGE_POLL_VOTE_REMOVE'; userId: string; channelId: string; messageId: string; guildId?: string; answerId: number; message?: Message; user?: User; member?: Member }
 
 export type ChameleonEventHandler = (event: ChameleonEvent) => void | Promise<void>
