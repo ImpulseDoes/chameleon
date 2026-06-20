@@ -6,10 +6,54 @@ import type { Emoji, Sticker } from '../types/expressions/index.js'
 import type { TongueStore } from '../client/store.js'
 import type { Client } from '../client/client.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
+import { toCamelCase } from '../utils/object.js'
 
 export * from './embed.js'
 export * from './components.js'
 export * from './entities.js'
+
+function buildAttachment(raw: Record<string, unknown>): import('../types/message/index.js').Attachment {
+  return {
+    id: raw.id as string,
+    filename: (raw.filename as string) ?? '',
+    ...(raw.title !== undefined ? { title: raw.title as string } : {}),
+    ...(raw.description !== undefined ? { description: raw.description as string } : {}),
+    size: (raw.size as number) ?? 0,
+    url: (raw.url as string) ?? '',
+    proxyUrl: (raw.proxy_url as string) ?? '',
+    ...(raw.content_type !== undefined ? { contentType: raw.content_type as string } : {}),
+    ...(raw.height !== undefined ? { height: (raw.height as number | null) ?? null } : {}),
+    ...(raw.width !== undefined ? { width: (raw.width as number | null) ?? null } : {}),
+    ...(raw.placeholder !== undefined ? { placeholder: raw.placeholder as string } : {}),
+    ...(raw.placeholder_version !== undefined ? { placeholderVersion: raw.placeholder_version as number } : {}),
+    ...(raw.ephemeral !== undefined ? { ephemeral: raw.ephemeral as boolean } : {}),
+    ...(raw.duration_secs !== undefined ? { durationSecs: raw.duration_secs as number } : {}),
+    ...(raw.waveform !== undefined ? { waveform: raw.waveform as string } : {}),
+    ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
+    ...(raw.clip_participants !== undefined ? { clipParticipants: (raw.clip_participants as Record<string, unknown>[]).map(user => buildUser(user)) } : {}),
+    ...(raw.clip_created_at !== undefined ? { clipCreatedAt: raw.clip_created_at ? Date.parse(raw.clip_created_at as string) : 0 } : {}),
+    ...(raw.application !== undefined ? { application: toCamelCase(raw.application) as import('../types/application/index.js').Application } : {})
+  }
+}
+
+function buildEmbed(raw: Record<string, unknown>): import('../types/message/index.js').Embed {
+  return {
+    ...(raw.title !== undefined ? { title: raw.title as string } : {}),
+    ...(raw.type !== undefined ? { type: raw.type as string } : {}),
+    ...(raw.description !== undefined ? { description: raw.description as string } : {}),
+    ...(raw.url !== undefined ? { url: raw.url as string } : {}),
+    ...(raw.timestamp !== undefined ? { timestamp: raw.timestamp ? Date.parse(raw.timestamp as string) : 0 } : {}),
+    ...(raw.color !== undefined ? { color: raw.color as number } : {}),
+    ...(raw.footer !== undefined ? { footer: toCamelCase(raw.footer) as import('../types/message/index.js').EmbedFooter } : {}),
+    ...(raw.image !== undefined ? { image: toCamelCase(raw.image) as import('../types/message/index.js').EmbedImage } : {}),
+    ...(raw.thumbnail !== undefined ? { thumbnail: toCamelCase(raw.thumbnail) as import('../types/message/index.js').EmbedImage } : {}),
+    ...(raw.video !== undefined ? { video: toCamelCase(raw.video) as import('../types/message/index.js').EmbedVideo } : {}),
+    ...(raw.provider !== undefined ? { provider: toCamelCase(raw.provider) as import('../types/message/index.js').EmbedProvider } : {}),
+    ...(raw.author !== undefined ? { author: toCamelCase(raw.author) as import('../types/message/index.js').EmbedAuthor } : {}),
+    ...(raw.fields !== undefined ? { fields: toCamelCase(raw.fields) as import('../types/message/index.js').EmbedField[] } : {}),
+    ...(raw.flags !== undefined ? { flags: raw.flags as number } : {})
+  }
+}
 
 export function buildUser(raw: Record<string, unknown>): User {
   return {
@@ -303,12 +347,16 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
   const type = (raw.type as number) ?? oldMessage?.type ?? 0
   const flags = (raw.flags as number | undefined) ?? oldMessage?.flags
   const editedTimestamp = raw.edited_timestamp ? Date.parse(raw.edited_timestamp as string) : oldMessage?.editedTimestamp ?? null
-  const attachments = (raw.attachments as import('../types/message/index.ts').Attachment[]) ?? oldMessage?.attachments ?? []
-  const embeds = (raw.embeds as import('../types/message/index.ts').Embed[]) ?? oldMessage?.embeds ?? []
-  const components = (raw.components as import('../types/components/index.ts').MessageComponent[]) ?? oldMessage?.components
-  const stickerItems = (raw.sticker_items as import('../types/expressions/index.ts').StickerItem[]) ?? oldMessage?.stickerItems
-  const stickers = (raw.stickers as import('../types/expressions/index.ts').Sticker[]) ?? oldMessage?.stickers
-  const poll = (raw.poll as import('../types/message/index.ts').Poll) ?? oldMessage?.poll
+  const attachments = raw.attachments
+    ? (raw.attachments as Record<string, unknown>[]).map(attachment => buildAttachment(attachment))
+    : oldMessage?.attachments ?? []
+  const embeds = raw.embeds
+    ? (raw.embeds as Record<string, unknown>[]).map(embed => buildEmbed(embed))
+    : oldMessage?.embeds ?? []
+  const components = raw.components ? toCamelCase(raw.components) as import('../types/components/index.ts').MessageComponent[] : oldMessage?.components
+  const stickerItems = raw.sticker_items ? toCamelCase(raw.sticker_items) as import('../types/expressions/index.ts').StickerItem[] : oldMessage?.stickerItems
+  const stickers = raw.stickers ? toCamelCase(raw.stickers) as import('../types/expressions/index.ts').Sticker[] : oldMessage?.stickers
+  const poll = raw.poll ? toCamelCase(raw.poll) as import('../types/message/index.ts').Poll : oldMessage?.poll
   const reactions = raw.reactions 
     ? (raw.reactions as any[]).map(r => ({
         count: r.count,
@@ -319,19 +367,17 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
         burstColors: r.burst_colors ?? []
       }))
     : oldMessage?.reactions ?? []
-  const messageReference = (raw.message_reference as import('../types/message/index.ts').MessageReference | undefined) ?? oldMessage?.messageReference
+
+  const messageReference = raw.message_reference ? toCamelCase(raw.message_reference) as import('../types/message/index.ts').MessageReference : oldMessage?.messageReference
   const referencedMessage = (raw.referenced_message as Message | null | undefined) ?? oldMessage?.referencedMessage
-  const interactionMetadata = (raw.interaction_metadata as import('../types/message/index.ts').MessageInteractionMetadata | undefined) ?? oldMessage?.interactionMetadata
-  const interaction = (raw.interaction as import('../types/interaction/index.ts').MessageInteraction | undefined) ?? oldMessage?.interaction
-  const thread = (raw.thread as Channel | undefined) ?? oldMessage?.thread
-  
+  const interactionMetadata = raw.interaction_metadata ? toCamelCase(raw.interaction_metadata) as import('../types/message/index.ts').MessageInteractionMetadata : oldMessage?.interactionMetadata
+  const interaction = raw.interaction ? toCamelCase(raw.interaction) as import('../types/interaction/index.ts').MessageInteraction : oldMessage?.interaction
+  const thread = raw.thread ? buildChannel(raw.thread as Record<string, unknown>) : oldMessage?.thread
   const mentionEveryone = (raw.mention_everyone as boolean) ?? oldMessage?.mentionEveryone ?? false
   const tts = (raw.tts as boolean) ?? oldMessage?.tts ?? false
   const pinned = (raw.pinned as boolean) ?? oldMessage?.pinned ?? false
   const webhookId = (raw.webhook_id as string | undefined) ?? oldMessage?.webhookId
-
   const content = (raw.content as string) ?? oldMessage?.content ?? ''
-  
   const hasVoiceMessage = Boolean((flags ?? 0) & MessageFlag.IS_VOICE_MESSAGE)
   const hasForward = Boolean(
     ((messageReference?.type ?? 0) === MessageReferenceType.FORWARD) || 
@@ -352,10 +398,16 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     mentionEveryone,
     mentions: raw.mentions ? (raw.mentions as Record<string, unknown>[]).map(m => buildUser(m)) : (oldMessage?.mentions ?? []),
     mentionRoles: (raw.mention_roles as string[]) ?? oldMessage?.mentionRoles ?? [],
+    ...(raw.mention_channels !== undefined ? { mentionChannels: toCamelCase(raw.mention_channels) as import('../types/message/index.ts').ChannelMention[] } : oldMessage?.mentionChannels ? { mentionChannels: oldMessage.mentionChannels } : {}),
     attachments,
     embeds,
+    ...(raw.nonce !== undefined ? { nonce: raw.nonce as string | number } : oldMessage?.nonce !== undefined ? { nonce: oldMessage.nonce } : {}),
     pinned,
     type,
+    ...(raw.member && guildId ? { member: buildMember(raw.member as Record<string, unknown>, guildId, cache) } : oldMessage?.member ? { member: oldMessage.member } : {}),
+    ...(raw.activity !== undefined ? { activity: toCamelCase(raw.activity) as import('../types/message/index.ts').MessageActivity } : oldMessage?.activity ? { activity: oldMessage.activity } : {}),
+    ...(raw.application !== undefined ? { application: toCamelCase(raw.application) as Partial<import('../types/application/index.js').Application> } : oldMessage?.application ? { application: oldMessage.application } : {}),
+    ...(raw.application_id !== undefined ? { applicationId: raw.application_id as string } : oldMessage?.applicationId ? { applicationId: oldMessage.applicationId } : {}),
     ...(webhookId ? { webhookId } : {}),
     ...(flags !== undefined ? { flags } : {}),
     ...(messageReference ? { messageReference } : {}),
@@ -369,7 +421,11 @@ export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, o
     ...(stickers ? { stickers } : {}),
     ...(poll ? { poll } : {}),
     ...(reactions.length > 0 ? { reactions } : {}),
+    ...(raw.position !== undefined ? { position: raw.position as number } : oldMessage?.position !== undefined ? { position: oldMessage.position } : {}),
+    ...(raw.role_subscription_data !== undefined ? { roleSubscriptionData: toCamelCase(raw.role_subscription_data) as import('../types/message/index.ts').RoleSubscriptionData } : oldMessage?.roleSubscriptionData ? { roleSubscriptionData: oldMessage.roleSubscriptionData } : {}),
+    ...(raw.resolved !== undefined ? { resolved: toCamelCase(raw.resolved) as import('../types/interaction/index.ts').ResolvedData } : oldMessage?.resolved ? { resolved: oldMessage.resolved } : {}),
     ...(raw.call ? { call: raw.call as import('../types/message/index.ts').MessageCall } : oldMessage?.call ? { call: oldMessage.call } : {}),
+    ...(raw.shared_client_theme !== undefined ? { sharedClientTheme: toCamelCase(raw.shared_client_theme) as import('../types/message/index.ts').SharedClientTheme } : oldMessage?.sharedClientTheme ? { sharedClientTheme: oldMessage.sharedClientTheme } : {}),
     has: {
       attachments: attachments.length > 0 && !hasVoiceMessage,
       components: (components ?? []).length > 0,

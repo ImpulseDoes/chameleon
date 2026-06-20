@@ -116,7 +116,7 @@ describe('Chameleon Entity Builders', () => {
       status: 0,
       canceled_at: null
     })
-    
+
     const entry = buildAuditLogEntry({
       target_id: 't1',
       user_id: 'u1',
@@ -200,6 +200,65 @@ describe('Edge cases', () => {
 
     expect(msg.mentions).toHaveLength(1)
     expect(msg.mentions?.[0]?.username).toBe('john')
+  })
+
+  it('should map extended message fields and interaction context', () => {
+
+    const cache = new TongueStore()
+    const msg = buildMessage({
+      id: 'msg3',
+      channel_id: 'ch1',
+      guild_id: 'g1',
+      content: 'hello',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      author: { id: 'u1', username: 'john', discriminator: '0001', avatar: null },
+      mentions: [],
+      mention_roles: [],
+      mention_channels: [{ id: 'ch2', guild_id: 'g1', type: 0, name: 'rules' }],
+      attachments: [{ id: 'a1', filename: 'x.png', size: 1, url: 'u', proxy_url: 'p', content_type: 'image/png' }],
+      embeds: [{ title: 'Embed', timestamp: '2024-01-01T01:00:00.000Z' }],
+      pinned: false,
+      tts: false,
+      type: 0,
+      nonce: 'n1',
+      activity: { type: 1, party_id: 'party' },
+      application: { id: 'app1', name: 'app', icon: null, description: '', bot_public: true, bot_require_code_grant: false, verify_key: 'key', team: null },
+      application_id: 'app1',
+      position: 7,
+      role_subscription_data: { role_subscription_listing_id: 'r1', tier_name: 'gold', total_months_subscribed: 2, is_renewal: true },
+      resolved: { users: { u1: { id: 'u1', username: 'john' } } },
+      shared_client_theme: { colors: ['#fff'], gradient_angle: 90, base_mix: 1 },
+      member: { roles: [], joined_at: '2024-01-01T00:00:00.000Z', deaf: false, mute: false, flags: 0 }
+    }, cache)
+
+    const interaction = buildInteraction({
+      id: 'i2',
+      application_id: 'app1',
+      type: 2,
+      token: 'tok',
+      version: 1,
+      guild: { id: 'g1', name: 'guild', icon: null, splash: null, discovery_splash: null, owner_id: 'u1', afk_channel_id: null, afk_timeout: 0, verification_level: 0, default_message_notifications: 0, explicit_content_filter: 0, roles: [], emojis: [], features: [], mfa_level: 0, system_channel_id: null, system_channel_flags: 0, rules_channel_id: null, member_count: 1, vanity_url_code: null, description: null, banner: null, premium_tier: 0, premium_subscription_count: 0, preferred_locale: 'en-US', public_updates_channel_id: null, nsfw_level: 0, premium_progress_bar_enabled: false, application_id: null },
+      guild_id: 'g1',
+      channel: { id: 'ch1', type: 0, name: 'general' },
+      channel_id: 'ch1',
+      data: { id: 'cmd1', name: 'x', type: 1, resolved: { channels: { ch1: { id: 'ch1', guild_id: 'g1' } } } },
+      message: { id: 'm1', content: 'x' }
+    })
+
+    expect(msg.mentionChannels?.[0]?.guildId).toBe('g1')
+    expect(msg.attachments[0]?.proxyUrl).toBe('p')
+    expect(msg.embeds[0]?.timestamp).toBe(Date.parse('2024-01-01T01:00:00.000Z'))
+    expect(msg.nonce).toBe('n1')
+    expect(msg.activity?.partyId).toBe('party')
+    expect(msg.applicationId).toBe('app1')
+    expect(msg.position).toBe(7)
+    expect(msg.roleSubscriptionData?.tierName).toBe('gold')
+    expect(msg.resolved?.users?.u1?.username).toBe('john')
+    expect(msg.sharedClientTheme?.gradientAngle).toBe(90)
+    expect(msg.member?.joinedAt).toBe(Date.parse('2024-01-01T00:00:00.000Z'))
+    expect(interaction.guild?.id).toBe('g1')
+    expect(interaction.channel?.id).toBe('ch1')
+    expect((interaction.data as { resolved?: { channels?: Record<string, { guildId?: string }> } }).resolved?.channels?.ch1?.guildId).toBe('g1')
   })
 
   it('should expose message presence helpers via has', () => {

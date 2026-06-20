@@ -5,7 +5,7 @@ import type { User } from '../types/user/index.ts'
 import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import { INTERACTION_TYPES } from '../utils/constants.ts'
-import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker, buildThreadMember, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../builders/index.ts'
+import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildAutoModAction, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker, buildThreadMember, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager, EmojiManager, StickerManager, VoiceManager, IntegrationManager, SkuManager } from '../managers/index.js'
@@ -1045,8 +1045,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           user: d.user as Partial<User> & { id: string },
           guildId: d.guild_id as string,
           status: d.status as string,
-          activities: d.activities as unknown[],
-          clientStatus: d.client_status as unknown
+          activities: ((d.activities as Record<string, unknown>[]) ?? []).map(activity => activity),
+          clientStatus: (d.client_status as Record<string, unknown> | null) ?? null
         })
         break
       }
@@ -1320,7 +1320,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         void this.dispatch('AUTO_MODERATION_ACTION_EXECUTION', {
           type: 'AUTO_MODERATION_ACTION_EXECUTION',
           guildId: d.guild_id as string,
-          action: d.action as import('../types/automod/index.ts').AutoModerationAction,
+          action: buildAutoModAction(d.action as Record<string, unknown>),
           ruleId: d.rule_id as string,
           ruleTriggerType: d.rule_trigger_type as number,
           userId: d.user_id as string,

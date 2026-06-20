@@ -92,7 +92,7 @@ export type ChameleonEvent =
   | { type: 'ENTITLEMENT_CREATE'; entitlement: Entitlement }
   | { type: 'ENTITLEMENT_UPDATE'; entitlement: Entitlement }
   | { type: 'ENTITLEMENT_DELETE'; entitlement: Entitlement }
-  | { type: 'PRESENCE_UPDATE'; user: Partial<User> & { id: string }; guildId: string; status: string; activities: unknown[]; clientStatus: unknown }
+  | { type: 'PRESENCE_UPDATE'; user: Partial<User> & { id: string }; guildId: string; status: string; activities: Record<string, unknown>[]; clientStatus: Record<string, unknown> | null }
   | { type: 'TYPING_START'; channelId: string; guildId?: string; userId: string; timestamp: number; member?: Member; user?: User; channel?: Channel }
   | { type: 'USER_UPDATE'; oldUser?: User; user: User }
   | { type: 'WEBHOOKS_UPDATE'; guildId: string; channelId: string }

@@ -14,7 +14,7 @@ import type { Subscription } from '../types/subscription/index.js'
 import type { AuditLogEntry } from '../types/audit/index.js'
 import type { Webhook } from '../types/webhook/index.js'
 import type { TongueStore } from '../client/store.js'
-import { buildUser, buildMember, buildChannel, buildGuild } from './index.js'
+import { buildUser, buildMember, buildChannel, buildGuild, buildRole } from './index.js'
 import { toCamelCase } from '../utils/object.js'
 
 export function buildStageInstance(raw: Record<string, unknown>): StageInstance {
@@ -69,7 +69,7 @@ function buildAutoModActionMetadata(raw: Record<string, unknown>): AutoModeratio
   }
 }
 
-function buildAutoModAction(raw: Record<string, unknown>): AutoModerationAction {
+export function buildAutoModAction(raw: Record<string, unknown>): AutoModerationAction {
 
   return {
     type: raw.type as number,
@@ -267,8 +267,8 @@ function buildApplicationCommandData(raw: Record<string, unknown>): ApplicationC
     ...(raw.id !== undefined ? { id: raw.id as string } : {}),
     ...(raw.name !== undefined ? { name: raw.name as string } : {}),
     ...(raw.type !== undefined ? { type: raw.type as number } : {}),
-    ...(raw.resolved !== undefined ? { resolved: raw.resolved as ResolvedData } : {}),
-    ...(raw.options !== undefined ? { options: raw.options as ApplicationCommandInteractionDataOption[] } : {}),
+    ...(raw.resolved !== undefined ? { resolved: toCamelCase(raw.resolved) as ResolvedData } : {}),
+    ...(raw.options !== undefined ? { options: toCamelCase(raw.options) as ApplicationCommandInteractionDataOption[] } : {}),
     ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
     ...(raw.target_id !== undefined ? { targetId: raw.target_id as string } : {}),
   } as ApplicationCommandData
@@ -279,7 +279,7 @@ function buildMessageComponentData(raw: Record<string, unknown>): MessageCompone
     customId: (raw.custom_id as string) ?? '',
     componentType: (raw.component_type as number) ?? 0,
     ...(raw.values !== undefined ? { values: raw.values as string[] } : {}),
-    ...(raw.resolved !== undefined ? { resolved: raw.resolved as ResolvedData } : {}),
+    ...(raw.resolved !== undefined ? { resolved: toCamelCase(raw.resolved) as ResolvedData } : {}),
   }
 }
 
@@ -317,13 +317,15 @@ export function buildInteraction(raw: Record<string, unknown>, cache?: TongueSto
     applicationId: (raw.application_id as string) ?? '',
     type: (raw.type as number) ?? 1,
     ...(data ? { data } : {}),
+    ...(raw.guild ? { guild: buildGuild(raw.guild as Record<string, unknown>) } : {}),
     ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
+    ...(raw.channel ? { channel: buildChannel(raw.channel as Record<string, unknown>) } : {}),
     ...(raw.channel_id !== undefined ? { channelId: raw.channel_id as string } : {}),
     ...(member ? { member } : {}),
     ...(user ? { user } : {}),
     token: (raw.token as string) ?? '',
     version: (raw.version as number) ?? 1,
-    ...(raw.message !== undefined ? { message: raw.message as import('../types/message/index.js').Message } : {}),
+    ...(raw.message !== undefined ? { message: toCamelCase(raw.message) as import('../types/message/index.js').Message } : {}),
     ...(raw.app_permissions !== undefined ? { appPermissions: raw.app_permissions as string } : {}),
     ...(raw.locale !== undefined ? { locale: raw.locale as string } : {}),
     ...(raw.guild_locale !== undefined ? { guildLocale: raw.guild_locale as string } : {}),
@@ -363,7 +365,7 @@ export function buildInvite(raw: Record<string, unknown>): Invite {
     expiresAt: raw.expires_at ? Date.parse(raw.expires_at as string) : null,
     ...(raw.guild_scheduled_event !== undefined ? { guildScheduledEvent: buildScheduledEvent(raw.guild_scheduled_event as Record<string, unknown>) } : {}),
     ...(raw.flags !== undefined ? { flags: raw.flags as number } : {}),
-    ...(raw.roles !== undefined ? { roles: raw.roles as Role[] } : {}),
+    ...(raw.roles !== undefined ? { roles: (raw.roles as Record<string, unknown>[]).map(role => buildRole(role)) } : {}),
     ...(raw.uses !== undefined ? { uses: raw.uses as number } : {}),
     ...(raw.max_uses !== undefined ? { maxUses: raw.max_uses as number } : {}),
     ...(raw.max_age !== undefined ? { maxAge: raw.max_age as number } : {}),

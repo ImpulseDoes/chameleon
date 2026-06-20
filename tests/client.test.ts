@@ -149,4 +149,42 @@ describe('Client event pipeline', () => {
     expect(subscriptionEvent.subscription.userId).toBe('u1')
     expect(auditEvent.entry.options?.applicationId).toBe('app1')
   })
+
+  it('normalizes presence and automod action gateway events', async () => {
+    
+    const client = new Client({ token: 'test', intents: [] })
+    const seen: Array<unknown> = []
+
+    client.on('PRESENCE_UPDATE', event => { seen.push(event) })
+    client.on('AUTO_MODERATION_ACTION_EXECUTION', event => { seen.push(event) })
+
+    await client['handleDispatch']({
+      t: 'PRESENCE_UPDATE',
+      d: {
+        user: { id: 'u1', username: 'john' },
+        guild_id: 'g1',
+        status: 'online',
+        activities: [{ name: 'game', created_at: 1 }],
+        client_status: { desktop: 'online' }
+      }
+    } as import('../src/gateway/index.ts').GatewayPayload)
+
+    await client['handleDispatch']({
+      t: 'AUTO_MODERATION_ACTION_EXECUTION',
+      d: {
+        guild_id: 'g1',
+        action: { type: 2, metadata: { channel_id: 'ch1' } },
+        rule_id: 'r1',
+        rule_trigger_type: 1,
+        user_id: 'u1'
+      }
+    } as import('../src/gateway/index.ts').GatewayPayload)
+
+    const presenceEvent = seen[0] as Extract<import('../src/events/index.ts').ChameleonEvent, { type: 'PRESENCE_UPDATE' }>
+    const automodEvent = seen[1] as Extract<import('../src/events/index.ts').ChameleonEvent, { type: 'AUTO_MODERATION_ACTION_EXECUTION' }>
+
+    expect(presenceEvent.clientStatus).toEqual({ desktop: 'online' })
+    expect(presenceEvent.activities[0]?.name).toBe('game')
+    expect(automodEvent.action.metadata?.channelId).toBe('ch1')
+  })
 })
