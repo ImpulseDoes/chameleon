@@ -780,6 +780,36 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           }
         }
         const message = this.cache.messages.get(d.message_id as string)
+        
+        if (message) {
+
+          if (!message.reactions) message.reactions = []
+          const emoji = d.emoji as Record<string, unknown>
+          const existing = message.reactions.find(r => emoji.id ? r.emoji.id === emoji.id : r.emoji.name === emoji.name)
+          
+          if (existing) {
+
+            existing.count++
+            
+            if (d.burst) existing.countDetails.burst++
+            else existing.countDetails.normal++
+            
+            if (d.user_id === this.user?.id) {
+              existing.me = true
+              if (d.burst) existing.meBurst = true
+            }
+          } else {
+            message.reactions.push({
+              count: 1,
+              countDetails: { burst: d.burst ? 1 : 0, normal: d.burst ? 0 : 1 },
+              me: d.user_id === this.user?.id,
+              meBurst: d.user_id === this.user?.id && Boolean(d.burst),
+              emoji: emoji as unknown as import('../types/expressions/index.ts').Emoji,
+              burstColors: (d.burst_colors as string[]) ?? []
+            })
+          }
+        }
+
         const user = this.cache.users.get(d.user_id as string)
         void this.dispatch('MESSAGE_REACTION_ADD', {
           type: 'MESSAGE_REACTION_ADD',
@@ -801,6 +831,30 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'MESSAGE_REACTION_REMOVE': {
         const message = this.cache.messages.get(d.message_id as string)
+        
+        if (message && message.reactions) {
+
+          const emoji = d.emoji as Record<string, unknown>
+          const existing = message.reactions.find(r => emoji.id ? r.emoji.id === emoji.id : r.emoji.name === emoji.name)
+          
+          if (existing) {
+            existing.count--
+
+            if (d.burst) existing.countDetails.burst--
+            else existing.countDetails.normal--
+
+            if (d.user_id === this.user?.id) {
+              if (d.burst) existing.meBurst = false
+              else existing.me = false
+            }
+            
+            if (existing.count <= 0) {
+              message.reactions = message.reactions.filter(r => r !== existing)
+            }
+
+          }
+        }
+
         const user = this.cache.users.get(d.user_id as string)
         const member = d.guild_id ? this.cache.members.get(TongueStore.memberKey(d.guild_id as string, d.user_id as string)) : undefined
         void this.dispatch('MESSAGE_REACTION_REMOVE', {
@@ -821,25 +875,39 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
       case 'MESSAGE_REACTION_REMOVE_ALL': {
         const message = this.cache.messages.get(d.message_id as string)
+        const messageClone = message ? { ...message, reactions: message.reactions ? [...message.reactions] : [] } : undefined
+
+        if (message) {
+          message.reactions = []
+        }
+
         void this.dispatch('MESSAGE_REACTION_REMOVE_ALL', {
           type: 'MESSAGE_REACTION_REMOVE_ALL',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
-          ...(message ? { message } : {})
+          ...(messageClone ? { message: messageClone } : {})
         })
         break
       }
 
       case 'MESSAGE_REACTION_REMOVE_EMOJI': {
+        
         const message = this.cache.messages.get(d.message_id as string)
+        const messageClone = message ? { ...message, reactions: message.reactions ? [...message.reactions] : [] } : undefined
+
+        if (message && message.reactions) {
+          const emoji = d.emoji as Record<string, unknown>
+          message.reactions = message.reactions.filter(r => emoji.id ? r.emoji.id !== emoji.id : r.emoji.name !== emoji.name)
+        }
+
         void this.dispatch('MESSAGE_REACTION_REMOVE_EMOJI', {
           type: 'MESSAGE_REACTION_REMOVE_EMOJI',
           channelId: d.channel_id as string,
           messageId: d.message_id as string,
           ...(d.guild_id ? { guildId: d.guild_id as string } : {}),
           emoji: d.emoji as Partial<import('../types/expressions/index.ts').Emoji>,
-          ...(message ? { message } : {})
+          ...(messageClone ? { message: messageClone } : {})
         })
         break
       }
