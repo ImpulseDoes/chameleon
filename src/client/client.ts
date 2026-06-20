@@ -652,6 +652,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           type: 'GUILD_MEMBER_UPDATE',
           guildId,
           user,
+          member: updatedMember,
           roles: d.roles as string[],
           ...(oldMember ? { oldMember } : {}),
           ...(d.nick !== undefined ? { nick: (d.nick as string | null) ?? null } : {}),
@@ -1000,7 +1001,8 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           ...(inviter ? { inviter } : {}),
           maxAge: d.max_age as number,
           maxUses: d.max_uses as number,
-          temporary: d.temporary as boolean
+          temporary: d.temporary as boolean,
+          createdAt: Date.parse(d.created_at as string)
         })
         break
       }
@@ -1196,6 +1198,33 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         break
       }
 
+      case 'THREAD_MEMBERS_UPDATE': {
+        void this.dispatch('THREAD_MEMBERS_UPDATE', {
+          type: 'THREAD_MEMBERS_UPDATE',
+          id: d.id as string,
+          guildId: d.guild_id as string,
+          memberCount: d.member_count as number,
+          ...(d.added_members ? { addedMembers: (d.added_members as Record<string, unknown>[]).map(m => ({ id: m.id as string, userId: m.user_id as string, joinTimestamp: Date.parse(m.join_timestamp as string), flags: m.flags as number, ...(m.member && d.guild_id ? { member: buildMember(m.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {}) })) } : {}),
+          ...(d.removed_member_ids ? { removedMemberIds: d.removed_member_ids as string[] } : {})
+        })
+        break
+      }
+
+      case 'THREAD_MEMBER_UPDATE': {
+        void this.dispatch('THREAD_MEMBER_UPDATE', {
+          type: 'THREAD_MEMBER_UPDATE',
+          member: {
+            id: d.id as string,
+            userId: d.user_id as string,
+            joinTimestamp: Date.parse(d.join_timestamp as string),
+            flags: d.flags as number,
+            ...(d.member && d.guild_id ? { member: buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {})
+          },
+          guildId: d.guild_id as string
+        })
+        break
+      }
+
       case 'GUILD_EMOJIS_UPDATE': {
         const emojis = (d.emojis as Record<string, unknown>[]).map(raw => buildEmoji(raw))
         for (const emoji of emojis) {
@@ -1355,6 +1384,14 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
       case 'SUBSCRIPTION_DELETE': {
         void this.dispatch('SUBSCRIPTION_DELETE', { type: 'SUBSCRIPTION_DELETE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        break
+      }
+
+      case 'APPLICATION_COMMAND_PERMISSIONS_UPDATE': {
+        void this.dispatch('APPLICATION_COMMAND_PERMISSIONS_UPDATE', {
+          type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE',
+          permissions: d as unknown as { applicationId: string; guildId: string; id: string; permissions: string[] }[]
+        })
         break
       }
 

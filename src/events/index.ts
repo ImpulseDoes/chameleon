@@ -1,5 +1,5 @@
 import type { Message } from '../types/message/index.js'
-import type { Channel } from '../types/channel/index.js'
+import type { Channel, ThreadMember } from '../types/channel/index.js'
 import type { Guild, Member, Role } from '../types/guild/index.js'
 import type { User } from '../types/user/index.js'
 import type { Interaction } from '../types/interaction/index.js'
@@ -36,7 +36,7 @@ export type ChameleonEvent =
   | { type: 'THREAD_DELETE'; id: string; guildId: string; parentId: string; channelType: number; thread?: Channel }
   | { type: 'THREAD_LIST_SYNC'; guildId: string; channelIds?: string[]; threads: Channel[]; members: unknown[] }
   | { type: 'GUILD_MEMBER_ADD'; member: Member; guildId: string }
-  | { type: 'GUILD_MEMBER_UPDATE'; oldMember?: Member; guildId: string; user: User; roles: string[]; nick?: string | null; joinedAt?: number | null }
+  | { type: 'GUILD_MEMBER_UPDATE'; oldMember?: Member; member: Member; guildId: string; user: User; roles: string[]; nick?: string | null; joinedAt?: number | null }
   | { type: 'GUILD_MEMBER_REMOVE'; user: User; guildId: string; member?: Member }
   | { type: 'GUILD_MEMBERS_CHUNK'; guildId: string; members: Member[]; chunkIndex: number; chunkCount: number; notFound?: string[]; nonce?: string }
   | { type: 'GUILD_ROLE_CREATE'; guildId: string; role: Role }
@@ -70,8 +70,8 @@ export type ChameleonEvent =
   | { type: 'SUBSCRIPTION_DELETE'; subscription: Subscription }
   | { type: 'VOICE_CHANNEL_EFFECT_SEND'; channelId: string; guildId: string; userId: string; emoji?: Partial<Emoji>; animationType?: number; animationId?: number; soundId?: string | number; soundVolume?: number }
   | { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE'; guildId: string; entry: AuditLogEntry }
-  | { type: 'THREAD_MEMBERS_UPDATE'; id: string; guildId: string; memberCount: number; addedMembers?: Partial<Member>[]; removedMemberIds?: string[] }
-  | { type: 'THREAD_MEMBER_UPDATE'; member: Partial<Member>; guildId: string }
+  | { type: 'THREAD_MEMBERS_UPDATE'; id: string; guildId: string; memberCount: number; addedMembers?: ThreadMember[]; removedMemberIds?: string[] }
+  | { type: 'THREAD_MEMBER_UPDATE'; member: ThreadMember; guildId: string }
   | { type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE'; permissions: { applicationId: string; guildId: string; id: string; permissions: string[] } [] }
   | { type: 'GUILD_SCHEDULED_EVENT_CREATE'; scheduledEvent: GuildScheduledEvent }
   | { type: 'GUILD_SCHEDULED_EVENT_UPDATE'; scheduledEvent: GuildScheduledEvent }
@@ -82,7 +82,7 @@ export type ChameleonEvent =
   | { type: 'AUTO_MODERATION_RULE_UPDATE'; rule: AutoModerationRule }
   | { type: 'AUTO_MODERATION_RULE_DELETE'; rule: AutoModerationRule }
   | { type: 'AUTO_MODERATION_ACTION_EXECUTION'; guildId: string; action: AutoModerationAction; ruleId: string; ruleTriggerType: number; userId: string; channelId?: string; messageId?: string; content?: string; matchedKeyword?: string | null; matchedContent?: string | null; alertSystemMessageId?: string }
-  | { type: 'INVITE_CREATE'; channelId: string; code: string; guildId?: string; inviter?: User; maxAge: number; maxUses: number; temporary: boolean }
+  | { type: 'INVITE_CREATE'; channelId: string; code: string; guildId?: string; inviter?: User; maxAge: number; maxUses: number; temporary: boolean; createdAt: number }
   | { type: 'INVITE_DELETE'; channelId: string; code: string; guildId?: string }
   | { type: 'GUILD_INTEGRATIONS_UPDATE'; guildId: string }
   | { type: 'INTEGRATION_CREATE'; guildId: string; integration: Integration }
