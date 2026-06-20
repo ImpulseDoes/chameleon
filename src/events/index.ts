@@ -14,6 +14,7 @@ import type { Integration } from '../types/integration/index.js'
 import type { SoundboardSound } from '../types/soundboard/index.js'
 import type { Subscription } from '../types/subscription/index.js'
 import type { AuditLogEntry } from '../types/audit/index.js'
+import type { GuildApplicationCommandPermissions } from '../types/application/index.js'
 
 export type PartialChannel = Partial<Channel> & { id: string }
 export type PartialGuild = Partial<Guild> & { id: string }
@@ -34,7 +35,7 @@ export type ChameleonEvent =
   | { type: 'THREAD_CREATE'; channel: Channel }
   | { type: 'THREAD_UPDATE'; oldChannel?: Channel; channel: Channel }
   | { type: 'THREAD_DELETE'; id: string; guildId: string; parentId: string; channelType: number; thread?: Channel }
-  | { type: 'THREAD_LIST_SYNC'; guildId: string; channelIds?: string[]; threads: Channel[]; members: unknown[] }
+  | { type: 'THREAD_LIST_SYNC'; guildId: string; channelIds?: string[]; threads: Channel[]; members: ThreadMember[] }
   | { type: 'GUILD_MEMBER_ADD'; member: Member; guildId: string }
   | { type: 'GUILD_MEMBER_UPDATE'; oldMember?: Member; member: Member; guildId: string; user: User; roles: string[]; nick?: string | null; joinedAt?: number | null }
   | { type: 'GUILD_MEMBER_REMOVE'; user: User; guildId: string; member?: Member }
@@ -72,7 +73,7 @@ export type ChameleonEvent =
   | { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE'; guildId: string; entry: AuditLogEntry }
   | { type: 'THREAD_MEMBERS_UPDATE'; id: string; guildId: string; memberCount: number; addedMembers?: ThreadMember[]; removedMemberIds?: string[] }
   | { type: 'THREAD_MEMBER_UPDATE'; member: ThreadMember; guildId: string }
-  | { type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE'; permissions: { applicationId: string; guildId: string; id: string; permissions: string[] } [] }
+  | { type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE'; permissions: GuildApplicationCommandPermissions[] }
   | { type: 'GUILD_SCHEDULED_EVENT_CREATE'; scheduledEvent: GuildScheduledEvent }
   | { type: 'GUILD_SCHEDULED_EVENT_UPDATE'; scheduledEvent: GuildScheduledEvent }
   | { type: 'GUILD_SCHEDULED_EVENT_DELETE'; scheduledEvent: GuildScheduledEvent }

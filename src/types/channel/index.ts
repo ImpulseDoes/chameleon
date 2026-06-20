@@ -61,6 +61,7 @@ export interface ThreadMember {
   joinTimestamp: number // Unix ms
   flags: number
   member?: Member
+  presence?: Record<string, unknown>
 }
 
 export interface DefaultReaction {

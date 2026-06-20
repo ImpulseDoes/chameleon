@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { TEST_ENTITIES } from './mock/dataTest.js'
 import { resolveChannel, resolveGuild, resolveUser, resolveRole, buildMessage, buildGuild, buildInvite } from '../src/builders/index.ts'
-import { buildInteraction } from '../src/builders/entities.ts'
+import { buildInteraction, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../src/builders/entities.ts'
 import { TongueStore } from '../src/client/store.ts'
 import type { Client } from '../src/client/client.ts'
 import type { Channel } from '../src/types/channel/index.ts'
@@ -17,6 +17,8 @@ describe('Chameleon Entity Builders', () => {
     expect(user.id).toBe('704802632660943089')
     expect(user.username).toBe('impulsedoes')
     expect(user.bot).toBe(false)
+    expect(user.verified).toBe(false)
+    expect(user.email).toBe(null)
   })
 
   it('should build a Guild POJO correctly', () => {
@@ -26,6 +28,10 @@ describe('Chameleon Entity Builders', () => {
     expect(guild.id).toBe('619434557472505857')
     expect(guild.name).toBe('test-guild')
     expect(guild.ownerId).toBe('301655085954367490')
+    expect(guild.region).toBe('us-west')
+    expect(guild.maxMembers).toBe(250000)
+    expect(guild.approximateMemberCount).toBe(1)
+    expect(guild.stickers).toEqual([])
   })
 
   it('should build a Message POJO correctly', () => {
@@ -52,6 +58,7 @@ describe('Chameleon Entity Builders', () => {
     expect(role.id).toBe('123452789012345678')
     expect(role.name).toBe('admin')
     expect(role.permissions).toBe('8')
+    expect(role.tags).toEqual({})
   })
 
   it('should build a Member POJO correctly', () => {
@@ -60,6 +67,7 @@ describe('Chameleon Entity Builders', () => {
 
     expect(member.user?.id).toBe('301655085954367490')
     expect(member.roles).toEqual([])
+    expect(member.permissions).toBe('0')
   })
 
   it('should preserve invite metadata when present in the REST payload', () => {
@@ -82,6 +90,47 @@ describe('Chameleon Entity Builders', () => {
     expect(invite.temporary).toBe(true)
     expect(invite.createdAt).toBe(Date.parse('2024-01-02T03:04:05.000Z'))
     expect(invite.expiresAt).toBe(Date.parse('2024-01-02T04:04:05.000Z'))
+  })
+
+  it('should normalize soundboard, subscription and audit payloads', () => {
+
+    const sound = buildSoundboardSound({
+      name: 'boom',
+      sound_id: 's1',
+      volume: 0.5,
+      emoji_id: 'e1',
+      emoji_name: null,
+      guild_id: 'g1',
+      available: true,
+      user: { id: 'u1', username: 'john', discriminator: '0001', avatar: null, global_name: null }
+    })
+
+    const subscription = buildSubscription({
+      id: 'sub1',
+      user_id: 'u1',
+      sku_ids: ['sku1'],
+      entitlement_ids: ['ent1'],
+      renewal_sku_ids: null,
+      current_period_start: '2024-01-01T00:00:00.000Z',
+      current_period_end: '2024-02-01T00:00:00.000Z',
+      status: 0,
+      canceled_at: null
+    })
+    
+    const entry = buildAuditLogEntry({
+      target_id: 't1',
+      user_id: 'u1',
+      id: 'a1',
+      action_type: 10,
+      options: { application_id: 'app1' }
+    })
+
+    expect(sound.soundId).toBe('s1')
+    expect(sound.guildId).toBe('g1')
+    expect(subscription.userId).toBe('u1')
+    expect(subscription.currentPeriodStart).toBe(Date.parse('2024-01-01T00:00:00.000Z'))
+    expect(entry.userId).toBe('u1')
+    expect(entry.options?.applicationId).toBe('app1')
   })
 })
 

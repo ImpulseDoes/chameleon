@@ -186,3 +186,16 @@ export interface ApplicationCommand {
   integrationTypes?: number[]
   contexts?: number[]
 }
+
+export interface ApplicationCommandPermission {
+  id: string
+  type: number
+  permission: boolean
+}
+
+export interface GuildApplicationCommandPermissions {
+  id: string
+  applicationId: string
+  guildId: string
+  permissions: ApplicationCommandPermission[]
+}

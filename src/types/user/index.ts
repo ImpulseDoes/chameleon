@@ -9,7 +9,7 @@ export interface Nameplate {
   skuId: string
   asset: string
   label: string
-  palette: string
+  palette: string[]
 }
 
 export interface Collectibles {

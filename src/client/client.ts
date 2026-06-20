@@ -5,11 +5,12 @@ import type { User } from '../types/user/index.ts'
 import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import { INTERACTION_TYPES } from '../utils/constants.ts'
-import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker } from '../builders/index.ts'
+import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker, buildThreadMember, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager, EmojiManager, StickerManager, VoiceManager, IntegrationManager, SkuManager } from '../managers/index.js'
 import type { AutoDeferOptions, ClientOptions, MiddlewareFn, EventMap } from '../types/client/index.js'
+import type { GuildApplicationCommandPermissions } from '../types/application/index.js'
 
 export class Client<TIntents extends readonly IntentResolvable[] = readonly IntentResolvable[]> {
 
@@ -1181,6 +1182,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'THREAD_LIST_SYNC': {
         const guildId = d.guild_id as string
         const threads: import('../types/channel/index.ts').Channel[] = []
+        const members: import('../types/channel/index.ts').ThreadMember[] = []
         if (Array.isArray(d.threads)) {
           for (const raw of d.threads as Record<string, unknown>[]) {
             const ch = buildChannel(raw, guildId)
@@ -1188,12 +1190,17 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
             threads.push(ch)
           }
         }
+        if (Array.isArray(d.members)) {
+          for (const raw of d.members as Record<string, unknown>[]) {
+            members.push(buildThreadMember(raw, guildId, this.cache))
+          }
+        }
         void this.dispatch('THREAD_LIST_SYNC', {
           type: 'THREAD_LIST_SYNC',
           guildId,
           ...(d.channel_ids ? { channelIds: d.channel_ids as string[] } : {}),
           threads,
-          members: d.members as unknown[]
+          members
         })
         break
       }
@@ -1204,7 +1211,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
           id: d.id as string,
           guildId: d.guild_id as string,
           memberCount: d.member_count as number,
-          ...(d.added_members ? { addedMembers: (d.added_members as Record<string, unknown>[]).map(m => ({ id: m.id as string, userId: m.user_id as string, joinTimestamp: Date.parse(m.join_timestamp as string), flags: m.flags as number, ...(m.member && d.guild_id ? { member: buildMember(m.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {}) })) } : {}),
+          ...(d.added_members ? { addedMembers: (d.added_members as Record<string, unknown>[]).map(m => buildThreadMember(m, d.guild_id as string, this.cache)) } : {}),
           ...(d.removed_member_ids ? { removedMemberIds: d.removed_member_ids as string[] } : {})
         })
         break
@@ -1213,13 +1220,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       case 'THREAD_MEMBER_UPDATE': {
         void this.dispatch('THREAD_MEMBER_UPDATE', {
           type: 'THREAD_MEMBER_UPDATE',
-          member: {
-            id: d.id as string,
-            userId: d.user_id as string,
-            joinTimestamp: Date.parse(d.join_timestamp as string),
-            flags: d.flags as number,
-            ...(d.member && d.guild_id ? { member: buildMember(d.member as Record<string, unknown>, d.guild_id as string, this.cache) } : {})
-          },
+          member: buildThreadMember(d, d.guild_id as string, this.cache),
           guildId: d.guild_id as string
         })
         break
@@ -1358,11 +1359,11 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'GUILD_SOUNDBOARD_SOUND_CREATE': {
-        void this.dispatch('GUILD_SOUNDBOARD_SOUND_CREATE', { type: 'GUILD_SOUNDBOARD_SOUND_CREATE', guildId: d.guild_id as string, sound: d as unknown as import('../types/soundboard/index.ts').SoundboardSound })
+        void this.dispatch('GUILD_SOUNDBOARD_SOUND_CREATE', { type: 'GUILD_SOUNDBOARD_SOUND_CREATE', guildId: d.guild_id as string, sound: buildSoundboardSound(d) })
         break
       }
       case 'GUILD_SOUNDBOARD_SOUND_UPDATE': {
-        void this.dispatch('GUILD_SOUNDBOARD_SOUND_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUND_UPDATE', guildId: d.guild_id as string, sound: d as unknown as import('../types/soundboard/index.ts').SoundboardSound })
+        void this.dispatch('GUILD_SOUNDBOARD_SOUND_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUND_UPDATE', guildId: d.guild_id as string, sound: buildSoundboardSound(d) })
         break
       }
       case 'GUILD_SOUNDBOARD_SOUND_DELETE': {
@@ -1370,33 +1371,43 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         break
       }
       case 'GUILD_SOUNDBOARD_SOUNDS_UPDATE': {
-        void this.dispatch('GUILD_SOUNDBOARD_SOUNDS_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUNDS_UPDATE', guildId: d.guild_id as string, sounds: d.soundboard_sounds as import('../types/soundboard/index.ts').SoundboardSound[] })
+        void this.dispatch('GUILD_SOUNDBOARD_SOUNDS_UPDATE', { type: 'GUILD_SOUNDBOARD_SOUNDS_UPDATE', guildId: d.guild_id as string, sounds: ((d.soundboard_sounds as Record<string, unknown>[]) ?? []).map(sound => buildSoundboardSound(sound)) })
         break
       }
 
       case 'SUBSCRIPTION_CREATE': {
-        void this.dispatch('SUBSCRIPTION_CREATE', { type: 'SUBSCRIPTION_CREATE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        void this.dispatch('SUBSCRIPTION_CREATE', { type: 'SUBSCRIPTION_CREATE', subscription: buildSubscription(d) })
         break
       }
       case 'SUBSCRIPTION_UPDATE': {
-        void this.dispatch('SUBSCRIPTION_UPDATE', { type: 'SUBSCRIPTION_UPDATE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        void this.dispatch('SUBSCRIPTION_UPDATE', { type: 'SUBSCRIPTION_UPDATE', subscription: buildSubscription(d) })
         break
       }
       case 'SUBSCRIPTION_DELETE': {
-        void this.dispatch('SUBSCRIPTION_DELETE', { type: 'SUBSCRIPTION_DELETE', subscription: d as unknown as import('../types/subscription/index.ts').Subscription })
+        void this.dispatch('SUBSCRIPTION_DELETE', { type: 'SUBSCRIPTION_DELETE', subscription: buildSubscription(d) })
         break
       }
 
       case 'APPLICATION_COMMAND_PERMISSIONS_UPDATE': {
+        const entry = d as Record<string, unknown>
         void this.dispatch('APPLICATION_COMMAND_PERMISSIONS_UPDATE', {
           type: 'APPLICATION_COMMAND_PERMISSIONS_UPDATE',
-          permissions: d as unknown as { applicationId: string; guildId: string; id: string; permissions: string[] }[]
+          permissions: [{
+            id: (entry.id as string) ?? '',
+            applicationId: (entry.application_id as string) ?? '',
+            guildId: (entry.guild_id as string) ?? '',
+            permissions: (((entry.permissions as Record<string, unknown>[]) ?? []).map(permission => ({
+              id: (permission.id as string) ?? '',
+              type: (permission.type as number) ?? 0,
+              permission: (permission.permission as boolean) ?? false
+            })))
+          }] as GuildApplicationCommandPermissions[]
         })
         break
       }
 
       case 'GUILD_AUDIT_LOG_ENTRY_CREATE': {
-        void this.dispatch('GUILD_AUDIT_LOG_ENTRY_CREATE', { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE', guildId: d.guild_id as string, entry: d as unknown as import('../types/audit/index.ts').AuditLogEntry })
+        void this.dispatch('GUILD_AUDIT_LOG_ENTRY_CREATE', { type: 'GUILD_AUDIT_LOG_ENTRY_CREATE', guildId: d.guild_id as string, entry: buildAuditLogEntry(d) })
         break
       }
     }

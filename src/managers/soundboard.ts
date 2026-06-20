@@ -2,6 +2,7 @@ import type { ChameleonREST } from '../rest/index.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
 import type { SoundboardSound, SoundboardCreateOptions, SoundboardEditOptions } from '../types/soundboard/index.js'
 import { AttachmentBuilder } from '../builders/attachment.js'
+import { buildSoundboardSound } from '../builders/index.js'
 import { createAuditLogHeaders } from './shared.js'
 
 export class SoundboardManager {
@@ -23,30 +24,30 @@ export class SoundboardManager {
 
   public async fetchDefault(): Promise<ChameleonAPIResult<SoundboardSound[]>> {
 
-    const result = await this.rest.get<SoundboardSound[]>('/soundboard-default-sounds')
+    const result = await this.rest.get<unknown[]>('/soundboard-default-sounds')
 
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    return { ok: true, data: result.data }
+    return { ok: true, data: result.data.map(sound => buildSoundboardSound(sound as Record<string, unknown>)) }
   }
 
   public async fetch(guildId: string, soundId?: string): Promise<ChameleonAPIResult<SoundboardSound | SoundboardSound[]>> {
 
     if (soundId) {
 
-      const result = await this.rest.get<SoundboardSound>(`/guilds/${guildId}/soundboard-sounds/${soundId}`)
+      const result = await this.rest.get<unknown>(`/guilds/${guildId}/soundboard-sounds/${soundId}`)
 
       if (!result.ok) return result as ChameleonAPIResult<never>
 
-      return { ok: true, data: result.data }
+      return { ok: true, data: buildSoundboardSound(result.data as Record<string, unknown>) }
 
     } else {
 
-      const result = await this.rest.get<{ items: SoundboardSound[] }>(`/guilds/${guildId}/soundboard-sounds`)
+      const result = await this.rest.get<{ items: unknown[] }>(`/guilds/${guildId}/soundboard-sounds`)
 
       if (!result.ok) return result as ChameleonAPIResult<never>
 
-      return { ok: true, data: result.data.items }
+      return { ok: true, data: result.data.items.map(sound => buildSoundboardSound(sound as Record<string, unknown>)) }
 
     }
   }
@@ -70,11 +71,11 @@ export class SoundboardManager {
 
     const headers = createAuditLogHeaders(reason)
 
-    const result = await this.rest.post<SoundboardSound>(`/guilds/${guildId}/soundboard-sounds`, payload, headers)
+    const result = await this.rest.post<unknown>(`/guilds/${guildId}/soundboard-sounds`, payload, headers)
 
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    return { ok: true, data: result.data }
+    return { ok: true, data: buildSoundboardSound(result.data as Record<string, unknown>) }
   }
 
   public async edit(guildId: string, soundId: string, options: SoundboardEditOptions, reason?: string): Promise<ChameleonAPIResult<SoundboardSound>> {
@@ -88,11 +89,11 @@ export class SoundboardManager {
 
     const headers = createAuditLogHeaders(reason)
 
-    const result = await this.rest.patch<SoundboardSound>(`/guilds/${guildId}/soundboard-sounds/${soundId}`, payload, headers)
+    const result = await this.rest.patch<unknown>(`/guilds/${guildId}/soundboard-sounds/${soundId}`, payload, headers)
 
     if (!result.ok) return result as ChameleonAPIResult<never>
 
-    return { ok: true, data: result.data }
+    return { ok: true, data: buildSoundboardSound(result.data as Record<string, unknown>) }
   }
 
   public async delete(guildId: string, soundId: string, reason?: string): Promise<ChameleonAPIResult<never>> {

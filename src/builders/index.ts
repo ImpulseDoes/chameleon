@@ -1,8 +1,8 @@
 import type { User } from '../types/user/index.js'
-import type { Channel } from '../types/channel/index.js'
+import type { Channel, ThreadMember } from '../types/channel/index.js'
 import type { Guild, Member, Role } from '../types/guild/index.js'
 import { MessageFlag, MessageReferenceType, MessageType, type Message } from '../types/message/index.js'
-import type { Emoji } from '../types/expressions/index.js'
+import type { Emoji, Sticker } from '../types/expressions/index.js'
 import type { TongueStore } from '../client/store.js'
 import type { Client } from '../client/client.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
@@ -24,9 +24,45 @@ export function buildUser(raw: Record<string, unknown>): User {
     banner: (raw.banner as string | null) ?? null,
     accentColor: (raw.accent_color as number | null) ?? null,
     locale: (raw.locale as string) ?? undefined,
+    ...(raw.verified !== undefined ? { verified: raw.verified as boolean } : {}),
+    ...(raw.email !== undefined ? { email: (raw.email as string | null) ?? null } : {}),
     flags: (raw.flags as number) ?? 0,
     premiumType: (raw.premium_type as number) ?? 0,
     publicFlags: (raw.public_flags as number) ?? 0,
+    ...(raw.avatar_decoration_data !== undefined ? {
+      avatarDecorationData: raw.avatar_decoration_data
+        ? {
+            asset: ((raw.avatar_decoration_data as Record<string, unknown>).asset as string) ?? '',
+            skuId: ((raw.avatar_decoration_data as Record<string, unknown>).sku_id as string) ?? ''
+          }
+        : null
+    } : {}),
+    ...(raw.collectibles !== undefined ? {
+      collectibles: raw.collectibles
+        ? {
+            ...((raw.collectibles as Record<string, unknown>).nameplate
+              ? {
+                  nameplate: {
+                    skuId: ((((raw.collectibles as Record<string, unknown>).nameplate as Record<string, unknown>).sku_id) as string) ?? '',
+                    asset: ((((raw.collectibles as Record<string, unknown>).nameplate as Record<string, unknown>).asset) as string) ?? '',
+                    label: ((((raw.collectibles as Record<string, unknown>).nameplate as Record<string, unknown>).label) as string) ?? '',
+                    palette: (((((raw.collectibles as Record<string, unknown>).nameplate as Record<string, unknown>).palette) as string[]) ?? [])
+                  }
+                }
+              : {})
+          }
+        : null
+    } : {}),
+    ...(raw.primary_guild !== undefined ? {
+      primaryGuild: raw.primary_guild
+        ? {
+            identityGuildId: (((raw.primary_guild as Record<string, unknown>).identity_guild_id) as string | null) ?? null,
+            identityEnabled: (((raw.primary_guild as Record<string, unknown>).identity_enabled) as boolean | null) ?? null,
+            tag: (((raw.primary_guild as Record<string, unknown>).tag) as string | null) ?? null,
+            badge: (((raw.primary_guild as Record<string, unknown>).badge) as string | null) ?? null
+          }
+        : null
+    } : {}),
   } as User
 }
 
@@ -46,6 +82,7 @@ export function buildChannel(raw: Record<string, unknown>, guildId?: string): Ch
     userLimit: (raw.user_limit as number) ?? undefined,
     rateLimitPerUser: (raw.rate_limit_per_user as number) ?? 0,
     permissionOverwrites: (raw.permission_overwrites as unknown[]) ?? [],
+    ...(raw.recipients !== undefined ? { recipients: (raw.recipients as Record<string, unknown>[]).map(recipient => buildUser(recipient)) } : {}),
     ...(raw.icon !== undefined ? { icon: raw.icon as string | null } : {}),
     ...(raw.owner_id !== undefined ? { ownerId: raw.owner_id as string } : {}),
     ...(raw.application_id !== undefined ? { applicationId: raw.application_id as string } : {}),
@@ -105,11 +142,17 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
     id: raw.id as string,
     name: raw.name as string,
     icon: (raw.icon as string | null) ?? null,
+    ...(raw.icon_hash !== undefined ? { iconHash: (raw.icon_hash as string | null) ?? null } : {}),
     splash: (raw.splash as string | null) ?? null,
     discoverySplash: (raw.discovery_splash as string | null) ?? null,
+    ...(raw.owner !== undefined ? { owner: (raw.owner as boolean | null) ?? null } : {}),
     ownerId: raw.owner_id as string,
+    ...(raw.permissions !== undefined ? { permissions: (raw.permissions as string | null) ?? null } : {}),
+    ...(raw.region !== undefined ? { region: (raw.region as string | null) ?? null } : {}),
     afkChannelId: (raw.afk_channel_id as string | null) ?? null,
     afkTimeout: (raw.afk_timeout as number) ?? 0,
+    ...(raw.widget_enabled !== undefined ? { widgetEnabled: raw.widget_enabled as boolean } : {}),
+    ...(raw.widget_channel_id !== undefined ? { widgetChannelId: (raw.widget_channel_id as string | null) ?? null } : {}),
     verificationLevel: (raw.verification_level as number) ?? 0,
     defaultMessageNotifications: (raw.default_message_notifications as number) ?? 0,
     explicitContentFilter: (raw.explicit_content_filter as number) ?? 0,
@@ -118,6 +161,8 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
     systemChannelId: (raw.system_channel_id as string | null) ?? null,
     systemChannelFlags: (raw.system_channel_flags as number) ?? 0,
     rulesChannelId: (raw.rules_channel_id as string | null) ?? null,
+    ...(raw.max_presences !== undefined ? { maxPresences: (raw.max_presences as number | null) ?? null } : {}),
+    ...(raw.max_members !== undefined ? { maxMembers: raw.max_members as number } : {}),
     memberCount: (raw.member_count as number) ?? 0,
     vanityUrlCode: (raw.vanity_url_code as string | null) ?? null,
     description: (raw.description as string | null) ?? null,
@@ -126,8 +171,50 @@ export function buildGuild(raw: Record<string, unknown>): Guild {
     premiumSubscriptionCount: (raw.premium_subscription_count as number) ?? 0,
     preferredLocale: (raw.preferred_locale as string) ?? 'en-US',
     publicUpdatesChannelId: (raw.public_updates_channel_id as string | null) ?? null,
+    ...(raw.max_video_channel_users !== undefined ? { maxVideoChannelUsers: raw.max_video_channel_users as number } : {}),
+    ...(raw.max_stage_video_channel_users !== undefined ? { maxStageVideoChannelUsers: raw.max_stage_video_channel_users as number } : {}),
+    ...(raw.approximate_member_count !== undefined ? { approximateMemberCount: raw.approximate_member_count as number } : {}),
+    ...(raw.approximate_presence_count !== undefined ? { approximatePresenceCount: raw.approximate_presence_count as number } : {}),
+    ...(raw.welcome_screen !== undefined ? {
+      welcomeScreen: raw.welcome_screen
+        ? {
+            description: (((raw.welcome_screen as Record<string, unknown>).description) as string | null) ?? null,
+            welcomeChannels: ((((raw.welcome_screen as Record<string, unknown>).welcome_channels) as Record<string, unknown>[] | undefined) ?? []).map(channel => ({
+              channelId: (channel.channel_id as string) ?? '',
+              description: (channel.description as string) ?? '',
+              emojiId: (channel.emoji_id as string | null) ?? null,
+              emojiName: (channel.emoji_name as string | null) ?? null
+            }))
+          }
+        : undefined
+    } : {}),
     nsfwLevel: (raw.nsfw_level as number) ?? 0,
+    ...(raw.stickers !== undefined ? {
+      stickers: (raw.stickers as Record<string, unknown>[]).map(sticker => ({
+        id: sticker.id as string,
+        ...(sticker.pack_id !== undefined ? { packId: sticker.pack_id as string } : {}),
+        name: (sticker.name as string) ?? '',
+        description: (sticker.description as string | null) ?? null,
+        tags: (sticker.tags as string) ?? '',
+        type: (sticker.type as number) ?? 1,
+        formatType: (sticker.format_type as number) ?? 1,
+        ...(sticker.available !== undefined ? { available: sticker.available as boolean } : {}),
+        ...(sticker.guild_id !== undefined ? { guildId: sticker.guild_id as string } : {}),
+        ...(sticker.sort_value !== undefined ? { sortValue: sticker.sort_value as number } : {})
+      }) as Sticker)
+    } : {}),
     premiumProgressBarEnabled: (raw.premium_progress_bar_enabled as boolean) ?? false,
+    ...(raw.safety_alerts_channel_id !== undefined ? { safetyAlertsChannelId: (raw.safety_alerts_channel_id as string | null) ?? null } : {}),
+    ...(raw.incidents_data !== undefined ? {
+      incidentsData: raw.incidents_data
+        ? {
+            invitesDisabledUntil: (((raw.incidents_data as Record<string, unknown>).invites_disabled_until) as string | null) ?? null,
+            dmsDisabledUntil: (((raw.incidents_data as Record<string, unknown>).dms_disabled_until) as string | null) ?? null,
+            ...((raw.incidents_data as Record<string, unknown>).dm_spam_detected_at !== undefined ? { dmSpamDetectedAt: (((raw.incidents_data as Record<string, unknown>).dm_spam_detected_at) as string | null) ?? null } : {}),
+            ...((raw.incidents_data as Record<string, unknown>).raid_detected_at !== undefined ? { raidDetectedAt: (((raw.incidents_data as Record<string, unknown>).raid_detected_at) as string | null) ?? null } : {})
+          }
+        : null
+    } : {}),
     roles: Array.isArray(raw.roles) ? (raw.roles as Record<string, unknown>[]).map(r => buildRole(r)) : [],
     emojis: (raw.emojis as Emoji[]) ?? [],
     applicationId: (raw.application_id as string | null) ?? null,
@@ -148,6 +235,16 @@ export function buildRole(raw: Record<string, unknown>): Role {
     mentionable: (raw.mentionable as boolean) ?? false,
     icon: (raw.icon as string | null) ?? null,
     unicodeEmoji: (raw.unicode_emoji as string | null) ?? null,
+    ...(raw.tags !== undefined ? {
+      tags: {
+        ...((raw.tags as Record<string, unknown>).bot_id !== undefined ? { botId: (raw.tags as Record<string, unknown>).bot_id as string } : {}),
+        ...((raw.tags as Record<string, unknown>).integration_id !== undefined ? { integrationId: (raw.tags as Record<string, unknown>).integration_id as string } : {}),
+        ...((raw.tags as Record<string, unknown>).premium_subscriber !== undefined ? { premiumSubscriber: null } : {}),
+        ...((raw.tags as Record<string, unknown>).subscription_listing_id !== undefined ? { subscriptionListingId: (raw.tags as Record<string, unknown>).subscription_listing_id as string } : {}),
+        ...((raw.tags as Record<string, unknown>).available_for_purchase !== undefined ? { availableForPurchase: null } : {}),
+        ...((raw.tags as Record<string, unknown>).guild_connections !== undefined ? { guildConnections: null } : {})
+      }
+    } : {}),
     flags: (raw.flags as number) ?? 0,
   } as Role
 }
@@ -166,15 +263,31 @@ export function buildMember(raw: Record<string, unknown>, guildId: string, cache
     ...(userObj ? { user: userObj } : {}),
     nick: (raw.nick as string | null) ?? null,
     avatar: (raw.avatar as string | null) ?? null,
+    ...(raw.banner !== undefined ? { banner: (raw.banner as string | null) ?? null } : {}),
     roles: (raw.roles as string[]) ?? [],
-    joinedAt: raw.joined_at ? Date.parse(raw.joined_at as string) : 0,
+    joinedAt: raw.joined_at ? Date.parse(raw.joined_at as string) : null,
     premiumSince: raw.premium_since ? Date.parse(raw.premium_since as string) : null,
     deaf: (raw.deaf as boolean) ?? false,
     mute: (raw.mute as boolean) ?? false,
     pending: (raw.pending as boolean) ?? false,
+    ...(raw.permissions !== undefined ? { permissions: raw.permissions as string } : {}),
     flags: (raw.flags as number) ?? 0,
     communicationDisabledUntil: raw.communication_disabled_until ? Date.parse(raw.communication_disabled_until as string) : null,
+    ...(raw.avatar_decoration_data !== undefined ? { avatarDecorationData: buildUser({ avatar_decoration_data: raw.avatar_decoration_data }).avatarDecorationData ?? null } : {}),
+    ...(raw.collectibles !== undefined ? { collectibles: buildUser({ collectibles: raw.collectibles }).collectibles ?? null } : {}),
   } as Member
+}
+
+export function buildThreadMember(raw: Record<string, unknown>, guildId?: string, cache?: TongueStore): ThreadMember {
+
+  return {
+    ...(raw.id !== undefined ? { id: raw.id as string } : {}),
+    ...(raw.user_id !== undefined ? { userId: raw.user_id as string } : {}),
+    joinTimestamp: raw.join_timestamp ? Date.parse(raw.join_timestamp as string) : 0,
+    flags: (raw.flags as number) ?? 0,
+    ...(raw.member && guildId && cache ? { member: buildMember(raw.member as Record<string, unknown>, guildId, cache) } : {}),
+    ...(raw.presence !== undefined ? { presence: raw.presence as Record<string, unknown> } : {})
+  }
 }
 
 export function buildMessage(raw: Record<string, unknown>, cache: TongueStore, oldMessage?: Message): Message {

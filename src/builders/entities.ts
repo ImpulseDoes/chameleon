@@ -9,9 +9,13 @@ import type { Interaction, InteractionData, ApplicationCommandData, MessageCompo
 import type { User } from '../types/user/index.js'
 import type { Member, Role } from '../types/guild/index.js'
 import type { Invite } from '../types/invite/index.js'
+import type { SoundboardSound } from '../types/soundboard/index.js'
+import type { Subscription } from '../types/subscription/index.js'
+import type { AuditLogEntry } from '../types/audit/index.js'
 import type { Webhook } from '../types/webhook/index.js'
 import type { TongueStore } from '../client/store.js'
 import { buildUser, buildMember, buildChannel, buildGuild } from './index.js'
+import { toCamelCase } from '../utils/object.js'
 
 export function buildStageInstance(raw: Record<string, unknown>): StageInstance {
 
@@ -366,6 +370,46 @@ export function buildInvite(raw: Record<string, unknown>): Invite {
     ...(raw.temporary !== undefined ? { temporary: raw.temporary as boolean } : {}),
     ...(raw.created_at !== undefined ? { createdAt: raw.created_at ? Date.parse(raw.created_at as string) : 0 } : {}),
   }
+}
+
+export function buildSoundboardSound(raw: Record<string, unknown>): SoundboardSound {
+
+  let user: User | undefined
+
+  if (raw.user) {
+    user = buildUser(raw.user as Record<string, unknown>)
+  }
+
+  return {
+    name: (raw.name as string) ?? '',
+    soundId: (raw.sound_id as string) ?? '',
+    volume: (raw.volume as number) ?? 1,
+    emojiId: (raw.emoji_id as string | null) ?? null,
+    emojiName: (raw.emoji_name as string | null) ?? null,
+    ...(raw.guild_id !== undefined ? { guildId: raw.guild_id as string } : {}),
+    available: (raw.available as boolean) ?? false,
+    ...(user ? { user } : {})
+  }
+}
+
+export function buildSubscription(raw: Record<string, unknown>): Subscription {
+
+  return {
+    id: raw.id as string,
+    userId: (raw.user_id as string) ?? '',
+    skuIds: (raw.sku_ids as string[]) ?? [],
+    entitlementIds: (raw.entitlement_ids as string[]) ?? [],
+    renewalSkuIds: (raw.renewal_sku_ids as string[] | null) ?? null,
+    currentPeriodStart: raw.current_period_start ? Date.parse(raw.current_period_start as string) : 0,
+    currentPeriodEnd: raw.current_period_end ? Date.parse(raw.current_period_end as string) : 0,
+    status: (raw.status as number) ?? 0,
+    canceledAt: raw.canceled_at ? Date.parse(raw.canceled_at as string) : null,
+    ...(raw.country !== undefined ? { country: raw.country as string } : {})
+  }
+}
+
+export function buildAuditLogEntry(raw: Record<string, unknown>): AuditLogEntry {
+  return toCamelCase(raw) as AuditLogEntry
 }
 
 export function buildWebhook(raw: Record<string, unknown>): Webhook {
