@@ -920,7 +920,7 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
       }
 
       case 'INTERACTION_CREATE': {
-        if (d.type === INTERACTION_TYPES.APPLICATION_COMMAND) {
+        if (d.type === INTERACTION_TYPES.APPLICATION_COMMAND || d.type === INTERACTION_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE) {
           this.commands.handleInteraction(d).catch(console.error)
         } else if (d.type === INTERACTION_TYPES.MESSAGE_COMPONENT) {
           this.components.handleInteraction(d).catch(console.error)
