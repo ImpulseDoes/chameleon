@@ -48,6 +48,7 @@ export interface Guild {
   rulesChannelId: string | null
   maxPresences?: number | null
   maxMembers?: number
+  memberCount: number
   vanityUrlCode: string | null
   description: string | null
   banner: string | null

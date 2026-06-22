@@ -47,8 +47,8 @@ export type ChameleonEvent =
   | { type: 'GUILD_BAN_REMOVE'; guildId: string; user: User }
   | { type: 'GUILD_EMOJIS_UPDATE'; guildId: string; emojis: Emoji[] }
   | { type: 'GUILD_STICKERS_UPDATE'; guildId: string; stickers: Sticker[] }
-  | { type: 'MESSAGE_CREATE'; message: Message; channel: PartialChannel }
-  | { type: 'MESSAGE_UPDATE'; oldMessage?: Message; message: Message; channel: PartialChannel }
+  | { type: 'MESSAGE_CREATE'; message: Message; channel: PartialChannel; guild?: PartialGuild }
+  | { type: 'MESSAGE_UPDATE'; oldMessage?: Message; message: Message; channel: PartialChannel; guild?: PartialGuild }
   | { type: 'MESSAGE_DELETE'; messageId: string; channelId: string; guildId?: string; message?: Message }
   | { type: 'MESSAGE_DELETE_BULK'; messageIds: string[]; channelId: string; guildId?: string; messages?: Message[] }
   | { type: 'MESSAGE_REACTION_ADD'; userId: string; channelId: string; messageId: string; guildId?: string; emoji: Partial<Emoji>; member?: Member; message?: Message; user?: User; messageAuthorId?: string; burst: boolean; burstColors: string[]; reactionType: number }

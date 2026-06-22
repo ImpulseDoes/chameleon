@@ -33,8 +33,14 @@ export class EmbedBuilder {
     return this
   }
 
-  setColor(color: number): this {
-    this.data.color = color
+  setColor(color: number | string): this {
+
+    if (typeof color === 'string') {
+      this.data.color = parseInt(color.replace(/^#/, ''), 16)
+    } else {
+      this.data.color = color
+    }
+    
     return this
   }
 

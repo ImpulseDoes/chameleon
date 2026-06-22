@@ -5,7 +5,7 @@ import type { User } from '../types/user/index.ts'
 import type { Guild } from '../types/guild/index.ts'
 import { IntentBits, type IntentResolvable } from '../types/types.ts'
 import { INTERACTION_TYPES } from '../utils/constants.ts'
-import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildAutoModAction, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker, buildThreadMember, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../builders/index.ts'
+import { buildUser, buildChannel, buildGuild, buildRole, buildMember, buildMessage, resolveChannel, resolveGuild, buildStageInstance, buildScheduledEvent, buildAutoModRule, buildAutoModAction, buildIntegration, buildVoiceState, buildEntitlement, buildInteraction, buildEmoji, buildSticker, buildThreadMember, buildSoundboardSound, buildSubscription, buildAuditLogEntry } from '../builders/index.ts'
 import { CommandManager } from '../commands/index.ts'
 import { ComponentManager } from '../components/index.ts'
 import { UserManager, GuildManager, ChannelManager, MessageManager, CollectorManager, WebhookManager, InviteManager, AutoModerationManager, ScheduledEventManager, EntitlementManager, StageInstanceManager, TemplateManager, ApplicationManager, SoundboardManager, EmojiManager, StickerManager, VoiceManager, IntegrationManager, SkuManager } from '../managers/index.js'
@@ -718,11 +718,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
 
         const message = buildMessage(d, this.cache)
         this.cache.messages.set(message.id, message)
+        const guild = message.guildId ? resolveGuild(message.guildId, this) : undefined
 
         void this.dispatch('MESSAGE_CREATE', {
           type: 'MESSAGE_CREATE',
           message,
-          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel
+          channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel,
+          ...(guild ? { guild: guild as import('../events/index.ts').PartialGuild } : {})
         })
         break
       }
@@ -731,10 +733,13 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
         const oldMessage = this.cache.messages.get(d.id as string)
         const message = buildMessage(d, this.cache, oldMessage)
         this.cache.messages.set(message.id, message)
+        const guild = message.guildId ? resolveGuild(message.guildId, this) : undefined
+
         void this.dispatch('MESSAGE_UPDATE', {
           type: 'MESSAGE_UPDATE',
           message,
           channel: resolveChannel(message.channelId, this) as import('../events/index.ts').PartialChannel,
+          ...(guild ? { guild: guild as import('../events/index.ts').PartialGuild } : {}),
           ...(oldMessage ? { oldMessage } : {})
         })
         break
