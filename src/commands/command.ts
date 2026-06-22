@@ -1,5 +1,5 @@
 import { opt, type ChoiceDef, type OptionDef, type ResolveOptions, type OptionType } from './options.js'
-import type { CommandContext } from './context.js'
+import type { CommandContext, AutocompleteContext } from './context.js'
 import type { BitFieldResolvable } from '../utils/bitfield.js'
 import { PermissionsBitField } from '../types/permissions.js'
 
@@ -8,11 +8,13 @@ type SubcommandMap = Record<string, Subcommand<CommandOptionMap>>
 type SubcommandGroupMap = Record<string, SubcommandGroup<SubcommandMap>>
 
 export type ExecuteFunction<O extends Record<string, OptionDef<OptionType, boolean>>> = (ctx: CommandContext<ResolveOptions<O>>) => void | Promise<void>
+export type AutocompleteFunction<O extends Record<string, OptionDef<OptionType, boolean>>> = (ctx: AutocompleteContext<ResolveOptions<O>>) => void | Promise<void>
 
 export interface Subcommand<O extends CommandOptionMap = Record<string, never>> {
   description: string
   options?: O
   execute: ExecuteFunction<O>
+  autocomplete?: AutocompleteFunction<O>
 }
 
 export function defineSubcommand<O extends CommandOptionMap>(def: Subcommand<O>): Subcommand<O> {
@@ -38,6 +40,7 @@ export type CommandDef<
   subcommands?: S
   defaultMemberPermissions?: string | null
   execute?: ExecuteFunction<O>
+  autocomplete?: AutocompleteFunction<O>
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,11 +99,12 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
 
   constructor(
     private readonly description: string,
-    private readonly optionsDef?: O
+    private readonly optionsDef?: O,
+    private readonly autocompleteFn?: AutocompleteFunction<O>
   ) {}
 
   options<NewOptions extends CommandOptionMap>(options: NewOptions): SubcommandDefinitionBuilder<NewOptions> {
-    return new SubcommandDefinitionBuilder(this.description, options)
+    return new SubcommandDefinitionBuilder(this.description, options, this.autocompleteFn as unknown as AutocompleteFunction<NewOptions>)
   }
 
   option<Name extends string, Def extends OptionDef<OptionType, boolean>>(
@@ -109,7 +113,8 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   ): SubcommandDefinitionBuilder<O & Record<Name, Def>> {
     return new SubcommandDefinitionBuilder(
       this.description,
-      appendOption(this.optionsDef, name, definition)
+      appendOption(this.optionsDef, name, definition),
+      this.autocompleteFn as unknown as AutocompleteFunction<O & Record<Name, Def>>
     )
   }
 
@@ -188,10 +193,15 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
     return this.option(name, opt.attachment(description, options))
   }
 
+  autocomplete(autocomplete: AutocompleteFunction<O>): SubcommandDefinitionBuilder<O> {
+    return new SubcommandDefinitionBuilder(this.description, this.optionsDef, autocomplete)
+  }
+
   execute(execute: ExecuteFunction<O>): Subcommand<O> {
     return defineSubcommand({
       description: this.description,
       ...(this.optionsDef ? { options: this.optionsDef } : {}),
+      ...(this.autocompleteFn ? { autocomplete: this.autocompleteFn } : {}),
       execute
     } as Subcommand<O>)
   }
@@ -245,11 +255,12 @@ export class CommandDefinitionBuilder<
     private readonly description: string,
     private readonly optionsDef?: O,
     private readonly subcommandsDef?: S,
-    private readonly metadata: CommandMetadata = {}
+    private readonly metadata: CommandMetadata = {},
+    private readonly autocompleteFn?: AutocompleteFunction<O>
   ) {}
 
   options<NewOptions extends CommandOptionMap>(options: NewOptions): CommandDefinitionBuilder<NewOptions, S> {
-    return new CommandDefinitionBuilder(this.name, this.description, options, this.subcommandsDef, this.metadata)
+    return new CommandDefinitionBuilder(this.name, this.description, options, this.subcommandsDef, this.metadata, this.autocompleteFn as unknown as AutocompleteFunction<NewOptions>)
   }
 
   option<Name extends string, Def extends OptionDef<OptionType, boolean>>(
@@ -261,7 +272,8 @@ export class CommandDefinitionBuilder<
       this.description,
       appendOption(this.optionsDef, name, definition),
       this.subcommandsDef,
-      this.metadata
+      this.metadata,
+      this.autocompleteFn as unknown as AutocompleteFunction<O & Record<Name, Def>>
     )
   }
 
@@ -341,7 +353,7 @@ export class CommandDefinitionBuilder<
   }
 
   subcommands<NewSubcommands extends SubcommandMap | SubcommandGroupMap>(subcommands: NewSubcommands): CommandDefinitionBuilder<O, NewSubcommands> {
-    return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands, this.metadata)
+    return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, subcommands, this.metadata, this.autocompleteFn)
   }
 
   subcommand<Name extends string, Sub extends AnySubcommand>(
@@ -356,7 +368,8 @@ export class CommandDefinitionBuilder<
         ...(this.subcommandsDef ?? {} as S),
         [name]: subcommand
       } as S & Record<Name, Sub>,
-      this.metadata
+      this.metadata,
+      this.autocompleteFn
     )
   }
 
@@ -385,7 +398,8 @@ export class CommandDefinitionBuilder<
         Name,
         Group extends SubcommandGroupDefinitionBuilder<infer GS> ? SubcommandGroup<GS> : Group
       >,
-      this.metadata
+      this.metadata,
+      this.autocompleteFn
     )
   }
 
@@ -400,12 +414,17 @@ export class CommandDefinitionBuilder<
         defaultMemberPermissions: permissions === null
           ? null
           : PermissionsBitField.resolve(permissions).toString()
-      }
+      },
+      this.autocompleteFn
     )
   }
 
   setDefaultMemberPermissions(permissions: BitFieldResolvable | null): CommandDefinitionBuilder<O, S> {
     return this.setPermissions(permissions)
+  }
+
+  autocomplete(autocomplete: AutocompleteFunction<O>): CommandDefinitionBuilder<O, S> {
+    return new CommandDefinitionBuilder(this.name, this.description, this.optionsDef, this.subcommandsDef, this.metadata, autocomplete)
   }
 
   execute(execute: ExecuteFunction<O>): CommandDef<O, S> {
@@ -415,6 +434,7 @@ export class CommandDefinitionBuilder<
       ...(this.optionsDef ? { options: this.optionsDef } : {}),
       ...(this.subcommandsDef ? { subcommands: this.subcommandsDef } : {}),
       ...(this.metadata.defaultMemberPermissions !== undefined ? { defaultMemberPermissions: this.metadata.defaultMemberPermissions } : {}),
+      ...(this.autocompleteFn ? { autocomplete: this.autocompleteFn } : {}),
       execute
     } as CommandDef<O, S>)
   }
@@ -429,7 +449,8 @@ export class CommandDefinitionBuilder<
       description: this.description,
       ...(this.optionsDef ? { options: this.optionsDef } : {}),
       ...(this.subcommandsDef ? { subcommands: this.subcommandsDef } : {}),
-      ...(this.metadata.defaultMemberPermissions !== undefined ? { defaultMemberPermissions: this.metadata.defaultMemberPermissions } : {})
+      ...(this.metadata.defaultMemberPermissions !== undefined ? { defaultMemberPermissions: this.metadata.defaultMemberPermissions } : {}),
+      ...(this.autocompleteFn ? { autocomplete: this.autocompleteFn } : {})
     } as CommandDef<O, S>)
   }
 

@@ -3,6 +3,7 @@ import type { AnyCommandDef, AnyCommandInput, Subcommand, SubcommandGroup } from
 import type { ModalDef, ResolveModalFields, AnyModalField } from '../components/define.js'
 import type { ComponentContext } from '../components/context.js'
 import { CommandContext } from './context.js'
+import { AutocompleteContext } from './context.js'
 import { ModalContext } from './interactions.js'
 import { resolveUser, resolveGuild, resolveChannel, resolveRole, buildUser } from '../builders/index.js'
 import { COMMAND_OPTION_TYPES, INTERACTION_TYPES } from '../utils/constants.js'
@@ -45,6 +46,7 @@ interface InteractionOption {
   type: number
   value?: unknown
   options?: InteractionOption[]
+  focused?: boolean
 }
 
 type RuntimeOptionDef = OptionDef<OptionType, boolean>
@@ -85,6 +87,7 @@ function serializeCommandOption(name: string, definition: RuntimeOptionDef): Rec
   if (definition.max !== undefined) result.max_value = definition.max
   if (definition.minLength !== undefined) result.min_length = definition.minLength
   if (definition.maxLength !== undefined) result.max_length = definition.maxLength
+  if (definition.autocomplete !== undefined) result.autocomplete = definition.autocomplete
 
   return result
 }
@@ -305,7 +308,7 @@ export class CommandManager {
     if (!data) return
 
     if (raw.type === INTERACTION_TYPES.MODAL_SUBMIT) return this._handleModalInteraction(raw, data)
-    if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND) return
+    if (raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND && raw.type !== INTERACTION_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE) return
 
     const name = data.name
     if (!name) return
@@ -315,6 +318,7 @@ export class CommandManager {
 
     const parsedOptions: Record<string, unknown> = {}
     let targetExecute = command.execute
+    let targetAutocomplete = command.autocomplete
 
     const rawOptions = data.options || []
 
@@ -329,22 +333,32 @@ export class CommandManager {
       if (nestedSubcommand) {
         actualOptions = nestedSubcommand.options || []
 
-        const group = command.subcommands?.[groupName] as { subcommands?: Record<string, { execute?: typeof targetExecute }> } | undefined
+        const group = command.subcommands?.[groupName] as { subcommands?: Record<string, { execute?: typeof targetExecute, autocomplete?: typeof targetAutocomplete }> } | undefined
         const targetSubcommand = group?.subcommands?.[nestedSubcommand.name]
+        
         if (targetSubcommand) {
           targetExecute = targetSubcommand.execute
+          targetAutocomplete = targetSubcommand.autocomplete
         }
       }
     } else if (rawOptions.length > 0 && rawOptions[0]!.type === COMMAND_OPTION_TYPES.SUB_COMMAND) {
+
       const subcommandName = rawOptions[0]!.name
       actualOptions = rawOptions[0]!.options || []
 
       if (command.subcommands && command.subcommands[subcommandName]) {
         targetExecute = (command.subcommands[subcommandName] as { execute?: typeof targetExecute }).execute
+        targetAutocomplete = (command.subcommands[subcommandName] as { autocomplete?: typeof targetAutocomplete }).autocomplete
       }
     }
 
+    let focusedOption: { name: string; value: string | number } | undefined
+
     for (const opt of actualOptions) {
+
+      if (opt.focused) {
+        focusedOption = { name: opt.name, value: opt.value as string | number }
+      }
       if (opt.type === COMMAND_OPTION_TYPES.USER && data.resolved?.users?.[opt.value as string]) {
         parsedOptions[opt.name] = resolveUser(opt.value as string, this._client)
       } else if (opt.type === COMMAND_OPTION_TYPES.CHANNEL && data.resolved?.channels?.[opt.value as string]) {
@@ -370,6 +384,28 @@ export class CommandManager {
     const userRaw = member?.user ?? raw.user
 
     const user = buildUser(userRaw as Record<string, unknown>)
+
+    if (raw.type === INTERACTION_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE) {
+      
+      if (!targetAutocomplete || !focusedOption) return
+      
+      const ctx = new AutocompleteContext(
+        this._client,
+        raw,
+        parsedOptions,
+        focusedOption,
+        user,
+        raw.guild_id ? resolveGuild(raw.guild_id as string, this._client) : undefined,
+        raw.channel_id ? resolveChannel(raw.channel_id as string, this._client) : undefined
+      )
+
+      try {
+        await (targetAutocomplete as (ctx: AutocompleteContext<Record<string, unknown>>) => void | Promise<void>)(ctx)
+      } catch (err) {
+        console.error(`[Chameleon] Error executing autocomplete for command ${name}:`, err)
+      }
+      return
+    }
 
     const ctx = new CommandContext(
       this._client,

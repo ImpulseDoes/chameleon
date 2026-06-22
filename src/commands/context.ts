@@ -10,6 +10,7 @@ import { serializeComponent, validateMessageComponents } from '../builders/index
 import { INTERACTION_CALLBACK_TYPES, MESSAGE_FLAGS } from '../utils/constants.js'
 import { Label } from '../components/v2.js'
 import type { ChameleonAPIResult } from '../rest/types.js'
+import type { ChoiceDef } from './options.js'
 
 export type InteractionReplyOptions = string | {
   content?: string
@@ -192,5 +193,44 @@ export class CommandContext<Options = Record<string, unknown>> extends BaseInter
   ) {
     super(client, rawInteraction, user, guild, channel)
     this.options = parsedOptions
+  }
+}
+
+export class AutocompleteContext<Options = Record<string, unknown>> extends BaseInteractionContext {
+
+  public options: Options
+  public focused: { name: string; value: string | number }
+
+  constructor(
+    client: Client,
+    rawInteraction: Record<string, unknown>,
+    parsedOptions: Options,
+    focused: { name: string; value: string | number },
+    user: User,
+    guild?: Guild | { id: string },
+    channel?: Channel | { id: string }
+  ) {
+    super(client, rawInteraction, user, guild, channel)
+    this.options = parsedOptions
+    this.focused = focused
+  }
+
+  async respond(choices: ChoiceDef[]): Promise<void> {
+
+    if (this._replied) throw new Error('Interaction already acknowledged.')
+    this._replied = true
+    
+    try {
+
+      const result = await this._client.rest.post(`/interactions/${this.interactionId}/${this.interactionToken}/callback`, {
+        type: INTERACTION_CALLBACK_TYPES.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
+        data: { choices }
+      })
+      
+      this._assertOk(result, 'autocomplete response')
+    } catch (error) {
+      this._replied = false
+      throw error
+    }
   }
 }
