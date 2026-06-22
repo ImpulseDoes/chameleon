@@ -121,8 +121,8 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   string<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number },
-    maybeOptions?: { required?: R, minLength?: number, maxLength?: number }
+    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, minLength?: number, maxLength?: number, autocomplete?: boolean }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'string', R>>> {
     return this.option(name, opt.string(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
@@ -130,8 +130,8 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   integer<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
-    maybeOptions?: { required?: R, min?: number, max?: number }
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, min?: number, max?: number, autocomplete?: boolean }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'integer', R>>> {
     return this.option(name, opt.integer(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
@@ -139,8 +139,8 @@ export class SubcommandDefinitionBuilder<O extends CommandOptionMap = Record<str
   number<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
-    maybeOptions?: { required?: R, min?: number, max?: number }
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, min?: number, max?: number, autocomplete?: boolean }
   ): SubcommandDefinitionBuilder<O & Record<Name, OptionDef<'number', R>>> {
     return this.option(name, opt.number(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
@@ -280,8 +280,8 @@ export class CommandDefinitionBuilder<
   string<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number },
-    maybeOptions?: { required?: R, minLength?: number, maxLength?: number }
+    choicesOrOptions?: readonly ChoiceDef<string>[] | { required?: R, choices?: readonly ChoiceDef<string>[], minLength?: number, maxLength?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, minLength?: number, maxLength?: number, autocomplete?: boolean }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'string', R>>, S> {
     return this.option(name, opt.string(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
@@ -289,8 +289,8 @@ export class CommandDefinitionBuilder<
   integer<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
-    maybeOptions?: { required?: R, min?: number, max?: number }
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, min?: number, max?: number, autocomplete?: boolean }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'integer', R>>, S> {
     return this.option(name, opt.integer(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
@@ -298,8 +298,8 @@ export class CommandDefinitionBuilder<
   number<Name extends string, R extends boolean = false>(
     name: Name,
     description: string,
-    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number },
-    maybeOptions?: { required?: R, min?: number, max?: number }
+    choicesOrOptions?: readonly ChoiceDef<number>[] | { required?: R, choices?: readonly ChoiceDef<number>[], min?: number, max?: number, autocomplete?: boolean },
+    maybeOptions?: { required?: R, min?: number, max?: number, autocomplete?: boolean }
   ): CommandDefinitionBuilder<O & Record<Name, OptionDef<'number', R>>, S> {
     return this.option(name, opt.number(description, normalizeChoicesOptions(choicesOrOptions, maybeOptions)))
   }
