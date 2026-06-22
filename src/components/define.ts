@@ -8,6 +8,7 @@ import type { Channel } from '../types/channel/index.js'
 import { TEXT_INPUT_STYLES } from '../utils/constants.js'
 
 export type ButtonStyleString = 'primary' | 'secondary' | 'success' | 'danger' | 'link' | 'premium'
+export type EmojiResolvable = string | Partial<Emoji>
 
 export interface ButtonDef {
   /** Custom ID returned in the interaction payload for non-link buttons */
@@ -51,21 +52,26 @@ export function defineButton(def: ButtonDef): ButtonDef & { type: 'button' } {
   return { ...def, type: 'button' }
 }
 
+function resolveEmoji(emoji: EmojiResolvable): Partial<Emoji> {
+  if (typeof emoji === 'string') return { name: emoji }
+  return emoji
+}
+
 export const Button = {
   /** Build a reusable button definition that can be used in both V1 action rows and V2 accessories */
   of: (def: ButtonDef) => defineButton(def),
-  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text */
-  primary: (customId: string, label: string) => defineButton({ customId, label, style: 'primary' }),
-  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text */
-  secondary: (customId: string, label: string) => defineButton({ customId, label, style: 'secondary' }),
-  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text */
-  success: (customId: string, label: string) => defineButton({ customId, label, style: 'success' }),
-  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text */
-  danger: (customId: string, label: string) => defineButton({ customId, label, style: 'danger' }),
-  /** @param url Destination URL opened by the button @param label Visible button text */
-  link: (url: string, label: string) => defineButton({ url, label, style: 'link' }),
-  /** @param skuId Premium SKU ID used by Discord premium buttons @param label Visible button text */
-  premium: (skuId: string, label: string) => defineButton({ skuId, label, style: 'premium' }),
+  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text @param emoji Optional emoji to show on the button */
+  primary: (customId: string, label: string, emoji?: EmojiResolvable) => defineButton({ customId, label, style: 'primary', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
+  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text @param emoji Optional emoji to show on the button */
+  secondary: (customId: string, label: string, emoji?: EmojiResolvable) => defineButton({ customId, label, style: 'secondary', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
+  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text @param emoji Optional emoji to show on the button */
+  success: (customId: string, label: string, emoji?: EmojiResolvable) => defineButton({ customId, label, style: 'success', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
+  /** @param customId Component custom ID sent back in the interaction payload @param label Visible button text @param emoji Optional emoji to show on the button */
+  danger: (customId: string, label: string, emoji?: EmojiResolvable) => defineButton({ customId, label, style: 'danger', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
+  /** @param url Destination URL opened by the button @param label Visible button text @param emoji Optional emoji to show on the button */
+  link: (url: string, label: string, emoji?: EmojiResolvable) => defineButton({ url, label, style: 'link', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
+  /** @param skuId Premium SKU ID used by Discord premium buttons @param label Visible button text @param emoji Optional emoji to show on the button */
+  premium: (skuId: string, label: string, emoji?: EmojiResolvable) => defineButton({ skuId, label, style: 'premium', ...(emoji ? { emoji: resolveEmoji(emoji) } : {}) }),
 }
 
 export interface StringSelectDef {
