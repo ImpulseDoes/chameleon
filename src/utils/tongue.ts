@@ -16,10 +16,11 @@ class ListNode<K> {
  */
 export class Tongue<K, V> extends Collection<K, V> {
 
-  private max: number
+  public max: number
   private head: ListNode<K> | null = null
   private tail: ListNode<K> | null = null
   private keyMap: Map<K, ListNode<K>> = new Map()
+  public onEvict?: (key: K, value: V) => void
 
   constructor(maxSize: number = Infinity) {
     super()
@@ -61,7 +62,14 @@ export class Tongue<K, V> extends Collection<K, V> {
     }
     
     this.keyMap.delete(keyToEvict)
+
+    const val = super.get(keyToEvict)
+    
     super.delete(keyToEvict)
+    
+    if (this.onEvict && val !== undefined) {
+      this.onEvict(keyToEvict, val)
+    }
   }
 
   override get(key: K): V | undefined {

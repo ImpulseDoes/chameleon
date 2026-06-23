@@ -61,6 +61,21 @@ export class TongueStore {
     this.autoModRules = new Tongue<string, AutoModerationRule>(options?.autoModRules ?? 1000)
     this.integrations = new Tongue<string, Integration>(options?.integrations ?? 1000)
     this.voiceStates = new Tongue<string, Voice>(options?.voiceStates ?? 5000)
+
+    this.members.onEvict = (key) => {
+      
+      const guildId = key.split('_')[0]
+      
+      if (guildId) this.removeFromIndex(this.indexes.membersByGuild, guildId, key)
+    }
+
+    this.channels.onEvict = (key, val) => {
+      if (val.guildId) this.removeFromIndex(this.indexes.channelsByGuild, val.guildId, key)
+    }
+
+    this.roles.onEvict = (key) => {
+      this.removeFromAllIndexes(this.indexes.rolesByGuild, key)
+    }
   }
 
   public static memberKey(guildId: string, userId: string): string {
@@ -87,6 +102,20 @@ export class TongueStore {
 
       set.delete(entityId)
       if (set.size === 0) index.delete(groupKey)
+    }
+  }
+
+  public removeFromAllIndexes(index: Map<string, Set<string>>, entityId: string): void {
+
+    for (const [groupKey, set] of index.entries()) {
+    
+      if (set.has(entityId)) {
+
+        set.delete(entityId)
+    
+        if (set.size === 0) index.delete(groupKey)
+        break
+      }
     }
   }
 
