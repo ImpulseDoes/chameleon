@@ -73,6 +73,27 @@ export class Client<TIntents extends readonly IntentResolvable[] = readonly Inte
     this.webhooks = new WebhookManager(this.rest, this.cache)
     this.invites = new InviteManager(this.rest)
     this.autoMod = new AutoModerationManager(this.rest, this.cache)
+
+    if (typeof globalThis !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = globalThis as any
+      const gc = g.Bun?.gc ?? g.gc
+      
+      if (typeof gc === 'function') {
+      
+        const sweepTimer = setInterval(() => {
+          
+          try { 
+            gc(true) 
+          } catch {
+            // ignore
+          }
+        }, 120_000)
+      
+        if (sweepTimer.unref) sweepTimer.unref()
+      }
+    }
+    
     this.scheduledEvents = new ScheduledEventManager(this.rest, this.cache)
     this.entitlements = new EntitlementManager(this.rest, this.cache)
     this.stageInstances = new StageInstanceManager(this.rest, this.cache)
